@@ -1,0 +1,3731 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE sqlMap PUBLIC "-//ibatis.apache.org//DTD SQL Map 2.0//EN" "http://ibatis.apache.org/dtd/sql-map-2.dtd" >
+
+<sqlMap namespace="draw">
+
+	<typeAlias  alias="egovMap" type="egovframework.rte.psl.dataaccess.util.EgovMap"/>
+	<!--  CAD종류(sft) -->
+	<select id="DrawMngDAO.selectSftInfo" parameterClass="java.lang.String" resultClass="egovMap">
+		<![CDATA[ 
+			SELECT oid, name, extname FROM sft WHERE iscad = #iscad#
+		]]>
+	</select>
+	
+	<!-- 전체사용자 정보 -->
+	<select id="DrawMngDAO.selecUserListSearching" parameterClass="java.util.Map" resultClass="egovMap">
+		select A.*, '' active
+		from 
+			(
+				select th.teamoid, t.name as teamname, h.id as humid, h.name as humname, h.titoid, tit.name as tit	 								
+				from erpteam t
+				inner join teamhum th
+				on t.oid = th.teamoid
+				inner join hum h
+				on th.humid = h.id
+				inner join (select oid, name from ccn where parentoid = 'CCN02010' ) tit
+				on h.titoid = tit.oid
+			) A
+		where 1 = 1
+		<isNotEmpty property="teamname">
+		and   A.teamname like '%'||#teamname#||'%'
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and   A.humname like '%'||#name#||'%'
+		</isNotEmpty>		
+		<isNotEmpty property="dir">
+		order by $orderColumn$ $dir$
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selecUserListSearchingCnt" parameterClass="java.util.Map" resultClass="java.lang.Integer" >
+		select count(*)
+		from 
+			(
+				select th.teamoid, t.name as teamname, h.id as humid, h.name as humname, h.titoid, tit.name as tit	 								
+				from erpteam t
+				inner join teamhum th
+				on t.oid = th.teamoid
+				inner join hum h
+				on th.humid = h.id
+				inner join (select oid, name from ccn where parentoid = 'CCN02010' ) tit
+				on h.titoid = tit.oid
+			) A
+		where 1 = 1
+		<isNotEmpty property="teamname">
+		and   A.teamname like '%'||#teamname#||'%'
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and   A.humname like '%'||#name#||'%'
+		</isNotEmpty>			
+	</select>
+	
+	<!-- 서브파트 여부 체크 -->
+	<select id="DrawMngDAO.checkSubPart" parameterClass="java.util.Map" resultClass="egovMap" >
+		<![CDATA[ 
+		SELECT  CASE WHEN count>0 THEN 'FALSE' ELSE 'TRUE' END checkSubPart
+		FROM ( 
+			SELECT  count(P.OID) count	
+			FROM    VERPRT VP, PRT P , (
+			 	WITH RECURSIVE 
+				search_prtinfo(oid, name, seq, des, parentoid, isuse, level, PATH) as
+				(
+				select oid, name, seq, des, parentoid, isuse, 1, array[oid]::varchar[]
+				from   ccn     
+				where  oid = 'CCN00265'
+		        union  all
+				select c.oid, c.name, c.seq, c.des, c.parentoid, c.isuse, level + 1, PATH || c.oid::varchar
+				from   ccn c, search_prtinfo d
+				where  c.parentoid = d.oid
+		        )   
+		        select oid, name, seq, des, parentoid, isuse, level, PATH
+				from   search_prtinfo ORDER BY PATH
+			) PC	
+			WHERE   P.OID = VP.PRTOID	
+			AND     PC.OID = P.PRTCTGOID 
+			AND     VP.OID = #verprtoid# ) temp
+		]]>
+		<!-- AND PC.COD < '119' AND PC.PARENTOID = 'PCT0000003'-->
+	</select>
+	
+	<!-- 도면개정정보 리스트 -->
+	<select id="DrawMngDAO.selectPreDrawList" parameterClass="java.util.Map" resultClass="egovMap" >
+	 <![CDATA[ 
+		SELECT  P.OID AS POID, 
+		        VP.OID AS VPOID, 
+		        M.OID AS MOID, 
+		        PV.NAME AS PV, 
+		        '' NEXTPV, 
+				MT.NAME AS MT, 
+				MT.US AS MTUS, 
+				MT.CN AS MTCN, 		
+		        MK.NAME AS MK, 
+		        '' AS S, 
+		        '' AS DZ, 
+		        M.INDEXNO AS INDEXNO, 
+		        M.EONO AS EONO, 
+		        M.MEMO AS MEMO,
+		        P.PARTNAMEOID,
+		        P.NAM PARTNAME,
+		        P.PNO,
+		        P.PRTCTGOID,
+		        CA.NAME CARNM,
+		       	P.GRP1NM PRTCTGNM,
+		       	P.ITMBCNM PRTTYPNM,
+		        M.MODKINDOID,
+		        M.MODULETYPE, 
+		        M.MODTYPEOID, 
+		        M.DSCOID,
+		        M.DSZOID,
+		        M.PVSOID, 
+		        M.CARNAME,
+		        M.EONO,
+		        M.SUBASMCHECK,
+		        M.ACCEPTDATE, M.ECODATE, M.MODCLASSOID, M.CAROID, M.ITEMOID
+		FROM    MOD M
+				LEFT JOIN ENGCTGVIEW CA ON CA.OID = M.CAROID, 
+				PRT P
+				LEFT JOIN PRTCTGVIEW PC ON P.PRTCTGOID = PC.OID , 
+				VERPRT VP,  HUM H, 
+				(select * from ccn where parentoid ='CCN02097' ) PV,
+				(select * from ccn where parentoid ='CCN00058' ) MT, 
+				(select * from ccn where parentoid ='CCN00063' ) MK
+		WHERE   M.MODTYPEOID = MT.OID 
+		AND     M.MODKINDOID = MK.OID 
+		AND     M.REGHUMID = H.ID 
+		AND     M.PVSOID = PV.OID 
+		AND     M.VERPRTOID = VP.OID 
+		AND     VP.PRTOID = P.OID 
+		AND		VP.OID = #verprtoid#	
+		ORDER BY M.MODTYPEOID,PV.OID DESC, M.MODKINDOID,M.INDEXNO,P.NAM 
+		]]>
+		<!--AND     M.LASTFLAG = 'T'-->
+	</select>
+	
+	<!-- 배포담당자 리스트 -->
+	<select id="DrawMngDAO.userDistSearching" parameterClass="java.util.Map" resultClass="egovMap" >
+		 <![CDATA[ 
+		SELECT H.NAME AS NAME, DT.HUMID AS ID, (select name from ccn where parentoid = 'CCN02010'  and oid = H.TITOID ) AS TITNAME,
+		       T.NAME AS TEAMNAME, H.EMAIL, H.OFFICENUM, H.CELLULAPHN, DT.TEAMOID, DT.OID AS OID   
+		FROM   HUM H, TEAM T, DISTTEAMREL DT   
+		WHERE  DT.HUMID = H.ID   
+		AND    DT.TEAMOID = T.OID     
+		 ]]>
+		<isNotEmpty property="humid">  
+			AND    DT.HUMID LIKE #humid#
+		</isNotEmpty>
+		<isNotEmpty property="humname">  
+			AND    H.NAME LIKE #humname#
+		</isNotEmpty>
+		<isNotEmpty property="teamname">  
+			AND    T.NAME LIKE #teamname#
+		</isNotEmpty>
+	</select>
+	
+	<!-- 협력업체 리스트 -->
+	<select id="DrawMngDAO.comDistSearching" parameterClass="java.util.Map" resultClass="egovMap" >
+		<![CDATA[ 
+		SELECT R.OID, R.NAME, R.TEL, R.EMAIL, R.TEAMCOMOID, R.TEAMCOMNAME, R.LABOR, R.LABORID,  
+		       R.PWD, R.COMPANYCODE, R.REGDATE, R.ACCESSTIME, CASE WHEN R2.OID != '' THEN 'T' ELSE 'F' END ISREGDISTCOM  
+	    FROM(  
+	     SELECT DC.OID, DC.NAME, DC.TEL, DC.EMAIL, DC.TEAMCOMOID,    
+	            TC.NAME TEAMCOMNAME, DC.LABOR, DC.LABORID, DC.PWD, DC.COMPANYCODE,    
+	           DC.REGDATE, DC.ACCESSTIME    
+	     FROM DISTCOM DC  
+	    INNER JOIN TEAMCOM TC  
+	     ON DC.TEAMCOMOID = TC.OID  
+	    ) R  
+	     LEFT JOIN(  
+	    SELECT DC.OID  
+	    FROM DISTCOM DC  
+	    INNER JOIN TEAMCOM TC  
+	    ON DC.TEAMCOMOID = TC.OID  
+	    INNER JOIN DISTCOMHISTORY DCH  
+	    ON DC.OID = DCH.DISTCOMOID  
+	    INNER JOIN DIST D  
+	    ON DCH.DISTOID = D.OID
+	    ]]>
+	    <isNotEmpty property="distoid">  
+	    WHERE 	D.OID =  #distoid#  
+	 	</isNotEmpty>
+	    GROUP BY DC.OID  
+		) R2  
+	    ON R.OID = R2.OID		  
+	    WHERE 1 = 1		  		  
+		<isNotEmpty property="name">  
+			AND    upper(R.NAME) LIKE upper('%'||#name#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="labor">
+			AND    upper(R.LABOR) LIKE upper('%'||#labor#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="laborid">		
+			AND    upper(R.LABORID) LIKE upper('%'||#laborid#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="teamcom">		
+			AND    R.TEAMCOMOID = #teamcom#  
+		</isNotEmpty>
+	</select>
+	
+	
+	<!-- 미결재 리스트 -->
+	<select id="DrawMngDAO.retrieveApprovalList" parameterClass="java.util.Map" resultClass="egovMap" >
+		SELECT PV.NAME AS PVNAME, P.PNO AS PNO, M.OID AS MOID, MK.NAME AS MKNAME, '' AS SNAME	
+		<isNotEmpty property="lang">
+			<isEqual property="lang" compareValue="KR"> 
+			, MT.NAME AS MTNAME
+			</isEqual> 
+			<isEqual property="lang" compareValue="US"> 
+			, MT.US AS MTNAME 
+		 	</isEqual> 
+			<isEqual property="lang" compareValue="CN"> 
+			, MT.CN AS MTNAME 
+		 	</isEqual> 
+		 </isNotEmpty>
+		 <isEmpty property="lang">
+		 , MT.NAME AS MTNAME
+		 </isEmpty>
+		 ,'' AS DZNAME, M.INDEXNO AS INDEXNO, M.REGDATE AS REGDATE, M.EONO AS EONO		
+			FROM   MOD M, VERPRT VP, PRT P, HUM H,
+					(select * from ccn where parentoid ='CCN02097') PV, 
+					(select * from ccn where parentoid ='CCN00058' ) MT, 
+					(select * from ccn where parentoid ='CCN00063' ) MK
+			WHERE  M.MODTYPEOID = MT.OID 	
+			AND    M.MODKINDOID = MK.OID	
+			AND    M.PVSOID = PV.OID	
+			AND    M.REGHUMID = H.ID	
+			AND	   M.VERPRTOID = VP.OID	
+			AND    VP.PRTOID = P.OID	
+			AND    M.STAOID='CCN00192'
+			AND    H.ID = #userid#		
+			<isNotEmpty property="pno">		
+				 AND    P.PNO LIKE UPPER( '%'||#pno#||'%' ) 
+			</isNotEmpty>
+			<isNotEmpty property="eono">		
+				 AND    M.EONO LIKE UPPER( '%'%'||#eono#||'%' ) 
+			</isNotEmpty>
+			ORDER BY M.REGDATE DESC, MODULETYPE
+	</select>
+	
+	
+	<!-- 결재 첨부문서 리스트 -->
+	<select id="DrawMngDAO.retrieveDrawDocList" parameterClass="java.util.Map" resultClass="egovMap" >
+		SELECT  verdoc.OID AS verdocoid, doc.OID AS docoid, verdoc.VERSION, doc.dno, doc.title  
+		<isNotEmpty property="lang">	
+			<isEqual property="lang" compareValue="KR">
+			, module.NAME AS modulename , docctg.NAME AS docctg
+			</isEqual>
+			<isEqual property="lang" compareValue="US">
+			, module.US AS modulename , docctg.US AS docctg 
+			</isEqual>
+		</isNotEmpty>
+		<isEmpty property="lang">
+		, module.NAME AS modulename , docctg.NAME AS docctg
+		</isEmpty>
+			, verdoc.eono, hum.NAME AS writer, verdoc.regdate, docrel.ref 	
+		FROM (select * from ccn where parentoid ='CCN01225') module, docctgview docctg, hum, verdoc, doc, docrel  
+		WHERE doc.OID = verdoc.docoid  
+		AND hum.ID = verdoc.humid  
+		AND docctg.OID = doc.docctgoid  
+		AND module.oid = verdoc.moduletype  
+		AND verdoc.OID = docrel.verdocoid  
+		AND verdoc.humid = hum.ID 
+		AND docrel.reloid = #modoid# 
+	</select>
+
+	<!-- SelectCheckPvs -->
+	<select id="DrawMngDAO.retrieveCheckPvs" parameterClass="java.util.Map" resultClass="egovMap" >
+		SELECT OID	
+		FROM   (select * from ccn where parentoid = 'CCN02097') pv
+		WHERE  NAME = #pvsname#
+	</select>
+
+	<!--SelectCheckEqualPvs -->
+	<select id="DrawMngDAO.retrieveCheckEqualPvs" parameterClass="java.util.Map" resultClass="egovMap" >
+		SELECT OID	
+		FROM   MOD	
+		WHERE  OID = #modoid#
+		AND    MVERSION = #pvsname#	
+		AND    MODTYPEOID = #modtypeoid#
+		<!-- 	
+		<isEmpty property="indexno">	
+				AND    INDEXNO = '999' 
+		</isEmpty>
+		<isNotEmpty property="indexno">	
+			<isEqual property="indexno" compareValue="isNotExist">
+				AND    INDEXNO = '999' 
+			</isEqual>
+			<isNotEqual property="indexno" compareValue="isNotExist">
+				AND    INDEXNO = #indexno#
+			</isNotEqual>
+		</isNotEmpty>
+		-->
+	</select>
+	
+	<!--SelectCheckStatus -->
+	<select id="DrawMngDAO.retrieveCheckStatus" parameterClass="java.util.Map" resultClass="egovMap" >
+		SELECT OID	
+		FROM   MOD	
+		WHERE  STAOID != 'CCN00196'	
+		AND    VERPRTOID = #verprtoid#
+		AND    MODTYPEOID = #modtypeoid#
+		<!-- 
+		AND    INDEXNO = #indexno#	
+		 -->
+	</select>
+
+	<!--drawing.select.indexno -->
+	<select id="DrawMngDAO.retrieveIndexNo" parameterClass="java.util.Map" resultClass="java.lang.Integer" >
+		SELECT CASE WHEN MAX(cast(M.INDEXNO as integer)) IS NULL THEN 1 
+					ELSE  MAX(cast(M.INDEXNO as integer)) +1 END INDEXNO   
+		FROM MOD M WHERE M.VERPRTOID = #verprtoid# 
+		AND M.MODTYPEOID = #modtypeoid# 
+		AND M.PVSOID = #pvsoid#
+	</select>
+	
+	<!-- 도면정보 등록 -->
+	<insert id="DrawMngDAO.registertDrawInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+	    INSERT INTO MOD( 
+				OID, CAROID, PRTTYPEOID, MODULETYPE, DNO, MODTYPEOID, MVERSION, EONO, 
+				MODSIZEOID, DSCOID, DEVSTEP, STAOID, REGHUMID, DISTHUMID, REGDATE, DNAM, DESCRIPTION
+				)
+		VALUES (#oid#, #engctgoid#, #prttypeoid#, #moduletype#, #dno#, #modtypeoid#, #mversion#, #eono#,
+				#modsizeoid#, #dscoid#, #devstep#, 'CCN00192', #humid#, #disthumid#, current_timestamp, #dnam#, #description#
+				)
+		]]>
+	</insert>
+	
+	<!-- 도면 EBOM 정보 등록 -->
+	<insert id="DrawMngDAO.registertEbomInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+	    INSERT INTO EBOM(MODOID, PARENTOID, SEQ, HUMID , REGDATE)
+		VALUES (#modoid#, #parentoid#, cast(#seq# as integer), #humid#, current_date)
+		]]>
+	</insert>
+	
+	
+	<!-- 도면파일정보 등록 -->
+	<insert id="DrawMngDAO.registertDrawFileInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+	    INSERT INTO MODFILES(OID, VERSION, MODOID, FILENAME, RFILENAME, FILESIZE, INDEXNO, REGDATE, MASTERFLAG, FILEPATH, CHANGEDATE) 
+		VALUES (#oid#, #version#, #modoid#, #filename#, #rfilename#, $filesize$, $indexno$, current_timestamp, #masterflag#, #filepath#, current_timestamp)
+				
+		]]>
+	</insert>
+	
+	<!-- 도면파일정보 등록 -->
+	<insert id="DrawMngDAO.insertDrawFileInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+	    INSERT INTO MODFILES(OID, VERSION, MODOID, FILENAME, RFILENAME, FILESIZE, INDEXNO, REGDATE, MASTERFLAG, FILEPATH) 
+		VALUES (#oid#, #version#, #modoid#, #filename#, #rfilename#, $filesize$, (select nvl(indexno, 1) indexno from (select max(indexno) + 1  indexno from modfiles where modoid = #modoid#)), current_timestamp, #masterflag#, #filepath#)
+				
+		]]>
+	</insert>
+		
+	<!-- 도면정보 등록시 사용되는 쿼리 -->
+	<update id="DrawMngDAO.regUpdateDrawInfo" parameterClass="java.util.Map" >
+		UPDATE MOD
+		   SET verprtoid=#verprtoid#, modkindoid=#modkindoid#, dszoid=#dszoid#, dscoid=#dscoid#, modtypeoid=#modtypeoid#, 
+		       humid=#disthumid#, sftoid=#sftoid#, eono=upper(#eono#), staoid='CCN00192', mdmsinsert='F',
+		       memo=#memo#, pvsoid=#pvsoid#, moduletype=#moduletype#, carname=#carname#, indexno=#indexno#, authchk = #authchk#, 
+		       caroid = #caroid#, itemoid = #itemoid#, modclassoid = #modclassoid#
+		 WHERE oid=#oid#
+	</update>
+		
+	<!-- 도면정보 수정시 사용되는 쿼리 -->
+	<update id="DrawMngDAO.updateDrawInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		UPDATE mod
+		SET caroid = #engctgoid#, prttypeoid = #prttypeoid#, dnam = #dnam#, mversion = #mversion#, eono = #eono#, modtypeoid = #modtypeoid#,
+			modsizeoid = #modsizeoid#, dscoid = #dscoid#, devstep = #devstep#, description=#description#, changedate = current_timestamp
+		WHERE oid = #modoid#  
+		]]>
+	</update>
+	
+	<!-- 마스터 파일 체크 변경 -->
+	<update id="DrawMngDAO.updateDrawMasterFile" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		UPDATE modfiles
+		SET masterflag = 'T'
+		WHERE oid = #oid# and version = #version# and modoid = #modoid#
+		]]>
+	</update>
+	
+	<update id="DrawMngDAO.updateDrawMasterFileAllCheckDelete" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		UPDATE modfiles
+		SET masterflag = ''
+		WHERE modoid = #modoid#
+		]]>
+	</update>
+		
+	<!-- 도면정보 삭제 -->
+	<update id="DrawMngDAO.deleteDrawInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		DELETE FROM mod where oid = #modoid#
+		]]>
+	</update>
+
+	<!-- 도면 EBOM정보 삭제 -->
+	<delete id="DrawMngDAO.deleteDrawEbomInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		DELETE FROM ebom where parentoid = #modoid#
+		]]>
+	</delete>
+	<delete id="DrawMngDAO.deleteDrawEbomInfo2" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		DELETE FROM ebom where modoid = #modoid#
+		]]>
+	</delete>
+	<update id="DrawMngDAO.updateReturnEbomInfo" parameterClass="java.util.Map" >
+		update ebom set modoid = #chgmodoid# where modoid = #modoid# and parentoid = #parentoid#
+	</update>
+	
+	<select id="DrawMngDAO.selectPrevDno" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+         select m1.oid from mod m1 
+         inner join 
+         (select dno, (max(cast(mversion as integer)) -1) mversion from mod where oid = #modoid# group by dno) m2
+         on m1.dno = m2.dno and m1.mversion = m2.mversion
+	</select>
+	
+	<!-- 도면정보 삭제 -->
+	<update id="DrawMngDAO.deleteDrawFileInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		DELETE FROM modfiles where oid=#oid# and version=#version# and modoid = #modoid#
+		]]>	
+		<isNotEmpty property="filename">
+			and filename = #filename#
+		</isNotEmpty>
+	</update>
+	
+	<!-- 관련모듈 등록 -->
+	<insert id="DrawMngDAO.registertDrawRelInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+	    INSERT INTO DRAWREL	
+		( MODOID, RELOID, REF )
+		VALUES ( #oid#, #reloid#, 'F')
+		]]>
+	</insert>
+	
+	<!-- 도면배포 등록 -->
+	<insert id="DrawMngDAO.registertDrawDistInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			INSERT INTO DIST	
+			( OID, TITLE, CONTENT, HUMID, MODTYPEOID, DSZOID, CAROID, EONO, VERPRTOID, PNO, CARNAME, DISTHUMID, PARTNAME, APPFLAG )	
+			VALUES ( #oid#, #title#, #content#, #humid#, #modtypeoid#, #modsizeoid#, #engctgoid#, UPPER(#eono#), #verprtoid#, UPPER(#pno#), #carname#, #disthumid#, #partname#, #appflag# )
+		]]>
+	</insert>
+	
+	<!-- 도면배포 도면정보 연계 등록 -->
+	<insert id="DrawMngDAO.registertDistModHistoryInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			INSERT INTO DISTMODHISTORY	
+			( DISTOID, MODOID )	
+			VALUES ( #oid#, #modoid# )
+		]]>
+	</insert>
+	
+	<!-- 도면배포 배포팀 이력 등록 -->
+	<insert id="DrawMngDAO.registertDistTeamHistoryInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			INSERT INTO DISTTEAMHISTORY	
+			( DISTOID, DTROID )	
+			VALUES ( #oid#, #distteamoid#  )
+		]]>
+	</insert>
+	
+	<!-- 도면배포협력업체이력 등록 -->
+	<insert id="DrawMngDAO.registertDistComHistoryInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			INSERT INTO DISTCOMHISTORY	
+			( DISTOID, DISTCOMOID )	
+			VALUES ( #oid#, #distcomoid# )
+		]]>
+	</insert>
+
+	<!-- 버젼중 최신버젼의 도면을 업데이트(lastflag='T') -->
+	<update id="DrawMngDAO.updateDrawLastFlag" parameterClass="java.util.Map" >
+	  	UPDATE MOD	
+		SET    LASTFLAG = CASE PVSOID WHEN ( SELECT OID FROM (select * from ccn where parentoid = 'CCN02097') PV WHERE SEQ IN (	
+		                                      SELECT MAX(PV.SEQ)	
+		                                      FROM   MOD M, (select * from ccn where parentoid = 'CCN02097') PV	
+		                                      WHERE  M.PVSOID = PV.OID	
+		                                      AND    M.MODTYPEOID = #modtypeoid#	
+		                                      AND    M.VERPRTOID = #verprtoid#	
+		                                      AND    M.INDEXNO = '1'	
+											<isNotEmpty property="modkindoid">	
+												<isNotEqual property="modkindoid" compareValue="CCN00064">
+			                                      AND    M.PVSOID != 'CCN02119'	
+			                                    </isNotEqual>
+											</isNotEmpty>
+		                                      ) )	
+		                  THEN 'T' ELSE 'F' END	
+		WHERE  MODTYPEOID = #modtypeoid#	
+		AND    VERPRTOID = #verprtoid#	
+		AND    INDEXNO = '1'	
+	</update>
+	
+	<!-- 도면 첨부파일 등록 -->
+	<insert id="DrawMngDAO.registerAttachFile" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			INSERT INTO MOD( 
+				OID, SFTOID, FILEPATH, FILENAME, RFILENAME, FILESIZE, VERPRTOID, modkindoid, reghumid)
+			VALUES (#oid#, (select oid from ccn where parentoid='CCN00140' and upper(name) like upper('%'||#ext#||'%')), #filepath#, #filename#, #rfilename#, #filesize#, #verprtoid#, #modkindoid#, #reghumid#)
+		]]>
+	</insert>
+	
+	<!-- 도면 첨부파일 리스트 -->
+	<select id="DrawMngDAO.selectModAttachFile" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		<![CDATA[ 
+			$strSql$
+		]]>
+	</select>
+	
+	<!-- 도면 개정 리스트 -->
+	<select id="DrawMngDAO.selectPvsInfo" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT OID, NAME, DES FROM (select * from ccn where parentoid = 'CCN02097')  pv
+		WHERE 1=1
+		<isNotEmpty property="oid">	
+			AND OID = #OID#
+		</isNotEmpty>
+		<isNotEmpty property="name">	
+			AND NAME = #NAME#
+		</isNotEmpty>
+		ORDER BY seq
+	</select>
+	
+	<select id="DrawMngDAO.retrieveMaxDrawCheck" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+	  	select max(cast(mversion as integer)) mversion from mod where dno = #dno#
+	</select>
+	
+	<!-- 도면 상세정보 -->
+	<select id="DrawMngDAO.retrieveDrawInfo" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+ 		select m.oid as modoid, m.caroid, m.prttypeoid, prttype.name prttypename, car.name as enginename, m.moduletype, moduletype.name as moduletypename, m.dno, m.dnam, m.mversion, m.eono, m.modtypeoid ,modtype.name modtypename,  
+			   m.modsizeoid, modsize.name modsizename, m.dscoid, m.devstep, devstep.name devstepname, m.modappoid, ma.appmaioid,  m.staoid, sta.name as ms, m.reghumid humid, h.name as regname, to_char(m.regdate, 'yyyy-mm-dd') regdate , m.disthumid,
+			   to_char(m.checkdate,'yyyy-mm-dd hh24:mm:ss') checkdate, m.description
+		from mod m 						 	 
+			 left join engctgview car		 	 
+			 on m.caroid = car.oid  		
+			 left join ccn prttype
+			 on m.prttypeoid = prttype.oid
+			 left join ccn moduletype 		 	 
+			 on m.moduletype = moduletype.oid     
+			 left join ccn modtype    			 
+			 on m.modtypeoid = modtype.oid   	 
+			 left join ccn modsize 				 
+			 on m.modsizeoid = modsize.name 		 
+			 left join ccn devstep 		
+			 on m.devstep = devstep.oid    	
+			 left join (select oid, appmaioid, staoid, humid, aprdate  from modapprove group by oid, appmaioid, staoid, humid, aprdate) ma
+			 on m.modappoid = ma.oid	 
+			 inner join ccn sta  				 
+			 on m.staoid = sta.oid  				 
+			 inner join hum h  					 
+			 on m.reghumid = h.id			 	
+		where 1=1 and m.oid = #modoid#				
+	</select>
+	
+	<select id="DrawMngDAO.selectDistTeamChoice" resultClass="egovMap">
+		select distteamrel.oid, team.oid teamoid, hum.id humid, team.name teamname, hum.name humname, tit.name titname
+		from   distteamrel, team, hum, (select oid, name from ccn where parentoid = 'CCN02010' ) tit
+		where distteamrel.teamoid = team.oid
+		and distteamrel.humid = hum.id
+		and hum.titoid = tit.oid	
+	</select>
+	
+	<select id="DrawMngDAO.selectDistCooperTbl" resultClass="egovMap">
+		select distcom.oid, distcom.name, distcom.tel, distcom.email, distcom.laborid, distcom.pwd, distcom.companycode, distcom.labor
+		from distcom, teamcom
+		where distcom.teamcomoid = teamcom.oid	
+	</select>
+		
+	<!-- AA 조건(pno,pvsname)으로 단위파트존재 확인 (process:drawing.select.ExistDeptDrawingPrt, 쿼리: drawing.select.unitdrawingprt ) -->
+	<select id="DrawMngDAO.selectUnitDrawingPrt" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT VP.OID AS OID 	
+		FROM   PRT P, VERPRT VP, (select * from ccn where parentoid = 'CCN02097') PV 	
+		WHERE  P.PNO = ?	
+		AND    P.OID = VP.PRTOID 	
+		AND    VP.PVSOID = PV.OID 	
+		AND    PV.NAME = ? 
+	</select>
+	
+	<!--ABB process: drawing.select.ExistUnitDrawingPrt2, 쿼리:drawing.select.unitdrawingprt2 -->
+	<select id="DrawMngDAO.selectUnitDrawingPrt2" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT OID
+		FROM PRT
+		WHERE PNO = ?
+	</select>
+	
+	<!-- ABC  processGroup: drawing.insert.UnitPartGroup1 -->
+	<!-- ABCA 파트체크 process:drawing.check.ExistUnitDrawingPrt1, 쿼리:drawing.select.unitdrawingprt2 -->
+	<select id="DrawMngDAO.selectDrawingPrt2" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT OID 
+		FROM PRT 
+		WHERE PNO = ?
+	</select>
+	
+	
+	<!-- ABCB 파트추가(PRT) process: drawing.insert.XUnitPart, 쿼리: drawing.insert.xunitpart -->
+	<insert id="DrawMngDAO.registerXUnitPart" parameterClass="java.util.Map" >
+		INSERT INTO PRT(OID,PNO,NAM,PRTTYPOID, CAROID,PRTCTGOID,ISASSEMBLE,VENDEROID,PARENT, 
+				OLD_VERPRTOID,OLD_PRTOID,GROUPNUMBER,PARTNAMEOID,ENGINOID,PRDNAME) 
+		SELECT ?,?,NAM,'PTT300', CAROID,PRTCTGOID,ISASSEMBLE,VENDEROID,?, 
+			OLD_VERPRTOID,OLD_PRTOID,GROUPNUMBER,PARTNAMEOID,ENGINOID,PRDNAME 
+		FROM  PRT  
+		WHERE OID = ?
+	</insert>
+	
+	
+	<!-- ABCC 파트추가(VERPRT) process: drawing.insert.XUnitVerPart, 쿼리: drawing.insert.xunitverpart -->
+	<insert id="DrawMngDAO.registerXUnitVerPart" parameterClass="java.util.Map" >
+		INSERT INTO VERPRT( OID,PRTOID,PVSOID,PVS_NAME,CPVSOID, REGDATE,HUMID,ASMTYPOID,DESIGNER,ASP, 
+				IDNO,APRDAT,TGTDAT,GRP,UNIT, WEIGHT,COST,NEW_ASSEMBLE,COLOR,MATERIAL, 
+				DESCRIPTION,FACTORY_1,FACTORY_2,FACTORY_3,FACTORY_4, FACTORY_5,EXPORT,EZMSTCHK,CUSPNO,RMK2, 
+				ISCOMPAT,ISCODECHG,OLDPVS,OLDPNO,SUBCHK, SHAPE_DIVISION,COMP_CODE,PIN_CNT,STAOID) 
+		SELECT ?,?,?,?,CPVSOID, TO_CHAR(now(), 'YYYY-MM-DD'),?,ASMTYPOID,DESIGNER,ASP, 
+			IDNO,APRDAT,TGTDAT,GRP,UNIT, 
+			WEIGHT,COST,NEW_ASSEMBLE,COLOR,MATERIAL, 
+			DESCRIPTION,FACTORY_1,FACTORY_2,FACTORY_3,FACTORY_4, 
+			FACTORY_5,EXPORT,EZMSTCHK,CUSPNO,RMK2, 
+			ISCOMPAT,ISCODECHG,OLDPVS,OLDPNO,SUBCHK, 
+			SHAPE_DIVISION,COMP_CODE,PIN_CNT,'CCN00192' 
+		FROM VERPRT  
+		WHERE OID = ( 
+		 SELECT OID FROM VERPRT  WHERE PRTOID = ? AND PVSOID = (SELECT MAX(PVSOID) FROM VERPRT  WHERE PRTOID = ?))
+	</insert> 
+	
+	<!-- AC 단위도면 정보 MOD 테이블에 등록:단위도면 파트 정보를 mod 테이블에 삽입.--> 
+	<insert id="DrawMngDAO.registerDrawing" parameterClass="java.util.Map" >
+		INSERT INTO MOD( OID, VERPRTOID, INDEXNO, MODKINDOID, DSZOID, 
+				 DSCOID, MODTYPEOID, HUMID, SFTOID, EONO, 
+				 STAOID, FILEPATH, FILENAME, RFILENAME, MDMSINSERT, MEMO, PVSOID, LASTFLAG, MODULETYPE,CARNAME,DRWCHECK) 
+		VALUES  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'CCN00192', ?, ?, ?, 'F', ?, ?, ?, ?, ?, ?)
+	</insert>
+	
+	
+	<!-- AD 단위도면 정보 PSM 테이블에 등록, 단위도면 정보와 부모파트 정보를 연결시켜주는 PSM 테이블에 삽입 -->
+	<insert id="DrawMngDAO.registerXunitPsm" parameterClass="java.util.Map" >
+		with upsert as  
+		 (update psm set des = 'OTHER' where VERPRTOID1 = ? AND VERPRTOID2 = ? AND SEQ = '1' RETURNING *) 
+		 insert into psm(oid, VERPRTOID1, VERPRTOID2, SEQ, QTY) select ?, ?, ?, '1', '1' 
+		 WHERE NOT EXISTS (SELECT * FROM upsert)
+	</insert>
+	 
+	<!-- AE 해당 단위도면의 파트정보(verprt)를 최신버젼은 'T'로 나머지는 'F'로 변경 -->
+	<update id="DrawMngDAO.registerPrtMaxVersion" parameterClass="java.util.Map" >
+		UPDATE  VERPRT 
+		SET     VERSIONFLAG = CASE PVSOID WHEN (SELECT OID FROM (select * from ccn where parentoid = 'CCN02097') WHERE SEQ IN (  
+		                                     SELECT MAX(PV.SEQ) 
+		                                     FROM   VERPRT VP, (select * from ccn where parentoid = 'CCN02097') PV 
+		                                     WHERE  VP.PVSOID = PV.OID  
+		                                     AND    VP.PRTOID = ?) ) 
+		                       THEN 'T' ELSE 'F' END 
+		WHERE   PRTOID = ?
+	</update>
+	
+	
+	<!-- AF 해당 단위도면정보(mod)를 최신버젼은 'T'로 나머지는 'F'로 변경 -->
+	<update id="DrawMngDAO.registerUnitDrawMaxVersion" parameterClass="java.util.Map" >
+		UPDATE  MOD 
+		SET     LASTFLAG = CASE PVSOID WHEN (SELECT OID FROM (select * from ccn where parentoid = 'CCN02097') WHERE SEQ IN (  
+		                                  SELECT MAX(PV.SEQ) 
+		                                  FROM   MOD M, (select * from ccn where parentoid = 'CCN02097') PV 
+		                                  WHERE  M.PVSOID = PV.OID  
+		                                  AND    M.VERPRTOID IN (SELECT OID 
+		                                                        FROM VERPRT 
+		                                                        WHERE PRTOID = ?) 
+		                                  AND    M.PVSOID != 'PVS999') ) 
+		                       THEN 'T' ELSE 'F' END 
+		WHERE   VERPRTOID IN (SELECT OID 
+		                      FROM VERPRT 
+		                      WHERE PRTOID = ?)
+	</update>
+	                      
+	<!-- AG 도면 정보 DRAWREL 테이블에 등록.. 인데 단위도면은 DRAWREL과 관계없어서 나중에 제외할것임 -->                      
+	<insert id="DrawMngDAO.registerDrawRelationInfo" parameterClass="java.util.Map" >
+		INSERT INTO DRAWREL 
+		( MODOID, RELOID, REF ) 
+		VALUES ( ?, ?, 'F')
+	</insert>
+		
+	<!-- 체크아웃 -->
+	<update id="DrawMngDAO.updateCheckOut" parameterClass="java.util.Map" >
+		UPDATE MOD M	
+		SET CHECKDATE = to_date(#checkdate#,'yyyy-mm-dd hh24:mi:ss'), CHANGEDATE = to_date(#checkdate#,'yyyy-mm-dd hh24:mi:ss')
+		WHERE OID = #modoid#
+	</update>	
+	
+	<update id="DrawMngDAO.updateModFileCheckOut" parameterClass="java.util.Map" >
+		UPDATE MODFILES M	
+		SET CHECKDATE = to_date(#checkdate#,'yyyy-mm-dd hh24:mi:ss')
+		WHERE OID = #modfileoid#
+	</update>	
+	
+	<!-- 체크인 -->
+	<update id="DrawMngDAO.updateCheckIn" parameterClass="java.util.Map" >
+		UPDATE MOD M	
+		SET CHECKDATE = null, CHANGEDATE = current_timestamp
+		WHERE  OID = #modoid#
+	</update>	
+	
+	<!-- 3D파일 리스트 조회 -->
+	<select id="DrawMngDAO.selectSubAsmList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+	    <isNotEmpty property="modfileoid">
+			select mf.oid, mf.version, m.oid as modoid, m.dno, m.mversion, mf.filepath, mf.filename,mf.rfilename, mf.filesize, mf.indexno, m.reghumid humid, case when mf.checkdate is null then '체크인' else '체크아웃' end checkdate, mf.masterflag as mk, to_char(m.regdate,'yyyy-mm-dd') regdate, to_char(mf.changedate,'yyyy-mm-dd') changedate, mf.thumflag
+		    from mod m 
+			inner join modfiles mf
+			on m.oid = mf.modoid
+			where mf.oid = #modfileoid#
+		</isNotEmpty>
+	    <isNotEmpty property="modoid">
+			select mf.oid, mf.version, m.oid as modoid, mf.filepath, mf.filename,mf.rfilename, mf.filesize, mf.indexno, m.reghumid humid, case when mf.checkdate is null then '체크인' else '체크아웃' end checkdate, mf.masterflag as mk, to_char(m.regdate,'yyyy-mm-dd') regdate,  to_char(mf.changedate,'yyyy-mm-dd') changedate, mf.thumflag
+		    from mod m 
+			inner join modfiles mf
+			on m.oid = mf.modoid
+			where m.oid = #modoid#
+			order by cast(indexno as integer) 
+		</isNotEmpty>
+	    <isNotEmpty property="verprtoid">
+            select mf.oid, mf.version, m.oid as modoid, prttype.name prttypename, m.dno, modtype.name modtypename, mf.filepath, mf.filename,mf.rfilename, mf.filesize, mf.indexno, m.reghumid humid, case when mf.checkdate is null then '체크인' else '체크아웃' end checkdate, mf.masterflag as mk, to_char(m.changedate,'yyyy-mm-dd') changedate, mf.thumflag
+            from mod m 
+            inner join drawrel dr
+            on m.oid = dr.modoid
+            inner join verprt vp
+            on dr.reloid = vp.oid 
+            inner join modfiles mf
+            on m.oid = mf.modoid
+            inner join ccn prttype
+            on m.prttypeoid = prttype.oid
+            left join ccn modtype
+            on m.modtypeoid = modtype.oid
+            where vp.oid = #verprtoid#
+            order by cast(indexno as integer) 
+		</isNotEmpty>
+	</select>
+
+	<select id="DrawMngDAO.selectSubHistAsmList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+			select mfh.oid, mfh.filepath, mfh.rfilename, mfh.filename, mfh.version, mfh.fileseq, to_char(mfh.regdate,'yyyy-mm-dd') regdate,  to_char(mfh.changedate,'yyyy-mm-dd') changedate, mfh.thumflag
+		    from mod m 
+			inner join modfiles mf
+			on m.oid = mf.modoid
+			inner join modfilehistory mfh
+			on mf.oid = mfh.oid
+			where m.oid = #modoid#
+			order by mfh.oid, cast(mfh.version as integer) desc
+	</select>
+	
+	<!-- 3D파일 리스트 조회 -->
+	<select id="DrawMngDAO.retrieveAsmFileInfo" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT modoid, filename, filesize, ext, seq, regdate, filepath, dbfilename, distchk
+		FROM ASMFILE
+		WHERE MODOID = #modoid#
+		order by seq
+	</select>
+	
+	<!-- 도면삭제에 사용되는 쿼리 -->
+	<select id="DrawMngDAO.selectRelExist" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT dr.RELOID, dr.REF, m.STAOID
+		FROM   DRAWREL	dr, mod m
+		WHERE  MODOID = #modoid#
+		<isNotEmpty property="reloid">
+		AND  RELOID = #reloid#
+		</isNotEmpty>
+		AND    dr.modoid = m.oid
+	</select>
+	
+	<!-- 파트 임시테이블 정보 추출 -->
+	<select id="DrawMngDAO.selectTempVerPrtList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+        select vp.oid, vp.nam, vp.pno, vp.pversion, vp.prttypoid, vp.prtctgoid, vp.itmctgoid,  vp.caroid, vp.oemtypoid, vp.cno, vp.factory, devstep.oid devstep, steering.oid steering, case when vp.activeflag = 'NO' then 'CCN11991' else 'CCN11992' end activeflag, vp.humid, vp.regdate, vp.staoid
+        , attr1.oid attr1, vp.attr2, vp.attr3, attr4.oid attr4, vp.attr5, vp.attr6, vp.attr7, vp.attr8, vp.attr9, vp.attr10, vp.attr11, vp.attr12, vp.attr13, attr14.oid attr14
+        from temp_verprt vp 
+        left join (select oid, des from ccn where parentoid = 'CCN00047') devstep
+        on vp.devstep = devstep.des
+        left join (select oid, des from ccn where parentoid = 'CCN11984') payment
+        on vp.payment = payment.des
+        left join (select oid, des from ccn where parentoid = 'CCN11987') steering
+        on vp.steering = steering.des
+        left join (select oid, des from ccn where parentoid = 'CCN03472') attr1
+        on vp.attr1 = attr1.des
+        left join (select oid, des from ccn where parentoid = 'CCN03487') attr4
+        on vp.attr4 = attr4.des
+        left join (select oid, des from ccn where parentoid = 'CCN03504') attr14
+        on vp.attr14 = attr14.des
+	</select>
+	<select id="DrawMngDAO.selectMBomCheckList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+        select mb.verprtoid, mb.parentoid from mbom mb where mb.parentoid = #oid#
+		minus( 
+		select vp.oid verprtoid, r.parentoid from verprt vp
+		inner join (
+		select vp.pno, max(vp.pversion) pversion, mb.parentoid
+		from verprt vp
+		left join mbom mb
+		on vp.oid = mb.verprtoid
+		where mb.parentoid = #oid#
+		group by pno, parentoid
+		) r
+		on vp.pno = r.pno and vp.pversion = r.pversion
+		)
+	</select>
+	
+	<!-- 추출한 파트 임시테이블 정보 등록 -->
+	<insert id="DrawMngDAO.insertVerPrtMigInfo" parameterClass="java.util.Map" >
+		INSERT INTO verprt(oid, pversion, humid, regdate, staoid, pno, nam, prttypoid, prtctgoid, itmctgoid, oemtypoid, caroid, cno, factory, devstep, 
+						   payment, steering, activeflag, attr1, attr2, attr3, attr4, attr5, attr6, attr7, attr8, attr9, attr10, attr11, attr12, attr13, attr14)
+		VALUES (#oid#, #pversion#, #humid#, #regdate#, #staoid#, #pno#, #nam#, #prttypoid#,#prtctgoid#,#itmctgoid#,#oemoid#,#caroid#,#cno#,#factory#,#devstep#,
+		    	#payment#, #steering#, #activeflag#, #attr1#, #attr2#, #attr3#, #attr4#, #attr5#, #attr6#, #attr7#, #attr8#, #attr9#, #attr10#, #attr11#, #attr12#, #attr13#, #attr14#)
+	</insert>	
+	<delete id="DrawMngDAO.deleteMBomInfo" parameterClass="java.util.Map" >
+		delete from mbom where verprtoid = #verprtoid# and parentoid = #parentoid#
+	</delete>
+	
+	<!-- 도면 임시테이블 정보 추출 -->
+	<select id="DrawMngDAO.selectTempModList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		select m.oid,  m.prttypeoid,  m.caroid, m.dno, m.dnam, m.mversion, modtype.oid modtypeoid, m.eono, modsize.oid modsizeoid, m.devstep, dsc.oid dscoid, m.staoid, m.reghumid, m.regdate  
+		from temp_mod m
+		left join (select oid, des from ccn where parentoid = 'CCN00058') modtype
+		on m.modtypeoid = modtype.des
+		left join (select oid, des from ccn where parentoid = 'CCN00265') modsize
+		on m.modsizeoid = modsize.des
+		left join (select oid, des from ccn where parentoid = 'CCN00076') dsc
+		on m.dscoid = dsc.des
+	</select>
+	<select id="DrawMngDAO.selectEBomCheckList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		<!-- select eb.modoid, eb.parentoid from ebom eb where eb.parentoid = #oid# -->
+        select eb.modoid, eb.parentoid from ebom eb where eb.parentoid = #oid#
+        minus( 
+        select m.oid modoid, r.parentoid from mod m
+        inner join (
+        select m.dno, max(cast(m.mversion as integer)) mversion, eb.parentoid
+        from mod m
+        left join ebom eb
+        on m.oid = eb.modoid
+        where eb.parentoid = #oid#
+        group by dno, parentoid
+        ) r
+        on m.dno = r.dno and m.mversion = r.mversion
+        )
+       
+	</select>
+	<delete id="DrawMngDAO.deleteEBomInfo" parameterClass="java.util.Map" >
+		delete from ebom where modoid = #modoid# and parentoid = #parentoid#
+	</delete>
+	<update id="DrawMngDAO.updateEbomChgSeq" parameterClass="java.util.Map" >
+		update ebom set seq = $seq$ where modoid = #modoid# and parentoid = #parentoid#
+	</update>
+	
+	
+	<!-- 도면 임시파일 테이블 정보 추출 -->
+	<select id="DrawMngDAO.selectTempModfileList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+        select 'high' drawtype,  version, modoid, filepath, filename, rfilename, filesize, fileseq,  masterflag, humid, regdate from temp_modfiles where modoid  = #oid#
+        union(
+        select 'low' drawtype, r.version,   r.modoid,   r.filepath,   r.filename,   r.rfilename,   r.filesize,   r.fileseq,    r.masterflag,   r.humid,   r.regdate
+        from(
+        select  version, modoid, filepath, filename, rfilename, filesize, fileseq,  masterflag, humid, regdate from temp_modfilehistory where modoid  = #oid#
+        MINUS(
+        select  version, modoid, filepath, filename, rfilename, filesize, fileseq,  masterflag, humid, regdate from temp_modfiles where modoid  = #oid#
+        )) r
+        )
+	</select>
+	
+	<!-- 추출한 도면파일 임시테이블 정보 등록 -->
+	<insert id="DrawMngDAO.insertModMigInfo" parameterClass="java.util.Map" >
+	    INSERT INTO MOD( OID, CAROID, PRTTYPEOID, MODULETYPE, DNO, MODTYPEOID, MVERSION, EONO, MODSIZEOID, DSCOID, DEVSTEP, STAOID, REGHUMID, REGDATE, DNAM )
+		VALUES (#oid#, #caroid#, #prttypeoid#, 'CCN00056', #dno#, #modtypeoid#, #mversion#, #eono#, #modsizeoid#, #dscoid#, #devstep#, #staoid#, #reghumid#, #regdate#, #dnam#)
+	</insert>
+	
+	<!-- 추출한 도면 임시테이블 정보 등록 -->
+	<insert id="DrawMngDAO.insertModfileMigInfo" parameterClass="java.util.Map" >
+	    <isEqual property="drawtype" compareValue="high">
+	    	INSERT INTO MODFILES(OID, VERSION, MODOID, FILENAME, RFILENAME, INDEXNO, HUMID, REGDATE, MASTERFLAG, FILEPATH) 
+			VALUES (#oid#, #version#, #modoid#, #filename#, #rfilename#, cast(#fileseq# as integer), #humid#, #regdate#, #masterflag#, #filepath#)
+	    </isEqual>
+	    <isEqual property="drawtype" compareValue="low">
+	        insert into modfilehistory(oid, modoid, version, filename, rfilename, fileseq, masterflag, humid, regdate, filepath)
+	        VALUES (#oid#, #modoid#, #version#, #filename#, #rfilename#, cast(#fileseq# as integer), #masterflag#, #humid#, #regdate#, #filepath#)
+	    </isEqual>
+	</insert> 
+
+	<!-- 설변 임시테이블 정보 추출 -->
+	<select id="DrawMngDAO.selectTempEcList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		select e.oid, case when e.ectype = 'ECO'  then 'CCN01240' else 'CCN01239' end ectype, e.eno, e.nam, e.caroid, ecgrund.oid ecgrund, e.ecgrundno, ecgoal.oid ecgoal, devstep.oid devstep, e.iscostchg, e.unitcost, applytimemng.oid applytimemng, e.matnewcost, e.matmodcost, inventoryhandling.oid inventoryhandling, fmea.oid fmea
+		,e.beforecont, e.aftercont, applyreqdat, e.staoid, e.humid, e.regdat, e.aprdat
+		from temp_ec e
+		left join (select oid, des from ccn where parentoid = 'CCN02361') ecgrund
+		on e.ecgrund = ecgrund.des
+		left join (select oid, des from ccn where parentoid = 'CCN00463') ecgoal
+		on e.ecgoal = ecgoal.des
+		left join (select oid, des from ccn where parentoid = 'CCN02366') devstep
+		on e.devstep = devstep.des
+		left join (select oid, des from ccn where parentoid = 'CCN02384') applytimemng
+		on e.applytimemng = applytimemng.des
+		left join (select oid, des from ccn where parentoid = 'CCN02369') inventoryhandling
+		on e.inventoryhandling = inventoryhandling.des
+		left join (select oid, des from ccn where parentoid = 'CCN02380') fmea
+		on e.fmea = fmea.des
+	</select>
+	
+	<select id="DrawMngDAO.selectTempEcrelInfoList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+        select er.ecoid, er.reloid, 'prt' moduletype from temp_ecrel er
+        inner join temp_verprt vp
+        on er.reloid = vp.oid
+        where er.ecoid = #oid#
+        union(
+        select er.ecoid, er.reloid, 'mod' moduletype from temp_ecrel er
+        inner join temp_mod m
+        on er.reloid = m.oid
+        where er.ecoid = #oid#
+        )union(
+        select er.ecoid, er.reloid, 'ecr' moduletype from temp_ecrel er
+        inner join temp_ec e
+        on er.reloid = e.oid
+        where er.ecoid = #oid#
+        )
+	</select>
+	
+	<!-- 추출한 설변 임시테이블 정보 등록 -->
+	<insert id="DrawMngDAO.insertEcMigInfo" parameterClass="java.util.Map" >
+		insert into ec ( 	oid, ectype, eno, nam, caroid, ecgrund, ecgrundno, ecgoal, devstep, iscostchg,
+					  		unitcost, applytimemng, matnewcost, matmodcost, inventoryhandling, applyreqdat, fmea,
+					  		staoid, humid, regdat, aprdat
+					   )
+				values ( 	#oid#, #ectype#, #eno#, #nam#, #caroid#, #ecgrund#, #ecgrundno#, #ecgoal#, #devstep#,
+							#iscostchg#, #unitcost#, #applytimemng#, #matnewcost#, #matmodcost#, #inventoryhandling#, #applyreqdat#,
+				 			#fmea#, #staoid#, #humid#, #regdat#, #aprdat#
+				       )    
+	</insert>
+	<insert id="DrawMngDAO.insertEcContMigInfo" parameterClass="java.util.Map" >
+		insert into eccontent(ecoid, beforecont, aftercont)
+		values(#oid#, #beforecont#, #aftercont#)   
+	</insert>
+	<insert id="DrawMngDAO.insertEcRelInfoMigInfo" parameterClass="java.util.Map" >
+		insert into ecrel(ecoid, reloid, moduletyp)
+		values(#ecoid#, #reloid#, #moduletype#)   
+	</insert>
+	
+	<!-- DELETE BEFORE DRAW INFORMATION -->
+	<select id="DrawMngDAO.selectDrawInfoBeforeDelete" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT MF.OID, MF.VERSION, MF.FILENAME, MF.RFILENAME, MF.FILESIZE, MF.INDEXNO, MF.MASTERFLAG
+		FROM MODFILES MF
+		WHERE MF.MODOID = #modoid#
+	</select>
+	
+	<!--  DELETE DRAW INFORMATION -->
+	<delete id="DrawMngDAO.deleteDrawInfoOfVerprtoid" parameterClass="java.util.Map"> 
+	DELETE FROM mod where oid in( select M.oid 
+	FROM MOD M INNER JOIN (select * from ccn where parentoid = 'CCN02097') PV ON M.PVSOID = PV.OID 
+	WHERE M.VERPRTOID = #verprtoid# 
+	AND PV.NAME = #pvsname#
+	<isNotEmpty property="modoid">
+	AND M.OID = #modoid#
+	</isNotEmpty>
+	)
+	</delete>
+	<!--  해당 도면정보 삭제한다(도면구분, Sheet No 조건의 데이타)-->
+	
+	<!-- 도면삭제시(일반,단위도면 모두) 최신버젼(lastflag)을 원복 시킨다. -->
+	<update id="DrawMngDAO.updateDrawComMaxVersion" parameterClass="java.util.Map" >
+		<isEqual property="mtoid" compareValue="MOT200">
+			UPDATE  MOD	
+			SET     LASTFLAG = CASE PVSOID WHEN (SELECT OID FROM (select * from ccn where parentoid = 'CCN02097') PV WHERE SEQ IN (	
+			                                  SELECT MAX(PV.SEQ)	
+			                                  FROM   MOD M, (select * from ccn where parentoid = 'CCN02097') PV	
+			                                  WHERE  M.PVSOID = PV.OID	
+			                                  AND    M.VERPRTOID IN (SELECT OID	
+			                                                        FROM VERPRT	
+			                                                        WHERE PRTOID = #prtoid#)	
+			                                  AND	   M.PVSOID != 'PVS999') )	
+			                      THEN 'T' ELSE 'F' END	
+			WHERE   VERPRTOID IN (SELECT OID	
+			                      FROM VERPRT	
+			                      WHERE PRTOID = #prtoid#)
+			</isEqual>	
+			<isNotEqual property="mtoid" compareValue="MOT200">
+			UPDATE MOD	
+		 	SET    LASTFLAG =   CASE PVSOID WHEN ( SELECT OID FROM (select * from ccn where parentoid = 'CCN02097') PV WHERE SEQ IN ( 	
+		        SELECT MAX(PV.SEQ)	
+		        FROM   MOD M, (select * from ccn where parentoid = 'CCN02097') PV	
+		        WHERE  M.PVSOID = PV.OID	
+		        AND    M.MODTYPEOID = #mtoid# 
+		        AND    M.VERPRTOID = #verprtoid#	
+		        AND    M.INDEXNO = #indexno#
+				<isNotEqual property="mtoid" compareValue ="MOT100">
+				AND    M.PVSOID != 'PVS999'	
+				</isNotEqual>
+		        ) ) 
+		        THEN 'T' ELSE 'F' END 				
+			WHERE  MODTYPEOID = #mtoid#
+			AND    VERPRTOID = #verprtoid#
+			AND    INDEXNO = #indexno#	
+		</isNotEqual>
+	</update>	
+	
+	<select id="DrawMngDAO.selectOtherDrawCnt" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT OID	
+		FROM   MOD	
+		WHERE  VERPRTOID = #verprtoid#
+		<isNotEmpty property="modoid">
+		AND OID != #modoid#
+		</isNotEmpty>
+	</select>
+	
+	
+	<!-- DELETE PSM-->
+	<delete id="DrawMngDAO.deletePSM" parameterClass="java.util.Map" >
+		DELETE FROM PSM 
+	    WHERE VERPRTOID1 = #verprtoid#
+	</delete>
+	
+	<!-- drawrel테이블의 해당 도면데이타 삭제 -->      
+	<delete id="DrawMngDAO.deleteRelOwn" parameterClass="java.util.Map" >
+		DELETE FROM DRAWREL	
+		WHERE  MODOID = #modoid#
+		<isNotEmpty property="reloid" >
+		AND RELOID = #reloid#
+		</isNotEmpty>
+	</delete>
+	
+	<!-- 해당도면의 부모값인 reloid로 된 다른 값이 있는지 조회## CHECK OTHERS RELATION INFORMATION -->
+	<select id="DrawMngDAO.selectRelexistother" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT MODOID	
+		FROM   DRAWREL 	
+		WHERE  RELOID = #reloid#
+		<isNotEmpty property="modoid">
+		AND MODOID != #modoid#
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectRelMoudleInfo" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+        select r.modoid, r.reloid
+        from(
+        SELECT MODOID, RELOID    
+        FROM   DRAWREL     
+        UNION
+        SELECT  RELOID MODOID, ECOID RELOID
+        FROM ECREL
+        UNION
+        SELECT RELOID MODOID, VERDOCOID RELOID
+        FROM DOCREL
+        ) r 
+		WHERE r.MODOID = #modoid#
+	</select>
+	
+	
+	<!-- reloid에 속한 다른 도면이 있으면 패스, 없으면 프로젝트 작업상태를 대기로 변경 (대기:WFS100)  -->   
+	<update id="DrawMngDAO.updatePrjSta" parameterClass="java.util.Map" >	
+		UPDATE
+		<isEqual property="prjdiv" compareValue="WKO">
+		PRJWORKOUTPUT
+		</isEqual>
+		<isNotEqual property="prjdiv" compareValue="WKO">
+		PRJWORKINPUT
+		</isNotEqual>
+		SET    PRJSTAOID = 'CCN00109'
+		WHERE  OID = #reloid#
+	</update>	
+		
+		
+	<!--  프로젝트 모듈에 연계된 도면이 모두 삭제된 경우 PRJSTAGE.STARTDATE갱신(중단:WFS160) -->
+	<update id="DrawMngDAO.updatePrjStageDel" parameterClass="java.util.Map" >	
+		UPDATE PRJSTAGE	
+		SET    STARTDATE = ''	
+		WHERE  STARTDATE IS NOT NULL	
+		AND    PRJSTAOID != 'CCN00114'
+		AND    OID IN (SELECT STAGEOID FROM PRJWORK WHERE WORKOID = #reloid# )	
+	</update>
+	
+	<select id="DrawMngDAO.SelectCheckEqualPvs" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		SELECT OID	
+		FROM   MOD	
+		WHERE  PVSOID = #pvsoid#	
+		AND    MODTYPEOID = #modtypeoid#	
+		AND    VERPRTOID = #verprtoid#	
+		<isEqual property="indexno" compareValue ="isNotExist">
+			AND    INDEXNO::integer = 999 
+		</isEqual>
+		<isNotEqual property="indexno" compareValue ="isNotExist">
+			AND    INDEXNO = #indexno#
+		</isNotEqual>
+	</select>
+		
+	<!-- 도면정보 수정시 사용되는 쿼리 -->
+	<update id="DrawMngDAO.updateDrawFileInfo" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		UPDATE mod
+		SET filename = #dbfilename#, rfilename = #rfilename#, changedate = to_char( now() , 'YYYY-MM-DD')
+		WHERE oid = #modoid#
+		]]>
+	</update>	
+	
+	<select id="DrawMngDAO.retrievePartSearchList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		$strSql$	
+	</select>
+
+	<select id="DrawMngDAO.retrieveDrawSearchList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		$strSql$	
+	</select>
+
+	<select id="DrawMngDAO.retrieveProjectSearchList" parameterClass="java.util.Map" resultClass="egovMap" remapResults="true">
+		$strSql$	
+	</select>
+	
+	<select id="DrawMngDAO.userLoginCheck" resultClass="egovMap">
+		SELECT * 
+		FROM hum
+		WHERE id = #id# 
+		<isNotEmpty property="pwd">
+		AND pwd = #pwd#
+		</isNotEmpty>
+	</select>
+
+	<select id="DrawMngDAO.retrieveDirSeq" resultClass="int">
+		SELECT case when count(*)=0 then 1 else count(*)+1 end cnt
+		FROM mod 
+		WHERE verprtoid = #verprtoid#
+		AND pvsoid = #pvsoid#
+		AND subasmcheck = 'T'
+	</select>
+		
+	<select id="DrawMngDAO.retrieveDirSeqMod" resultClass="int">
+		SELECT case when count(*)=0 then 1 else count(*)+1 end cnt
+		FROM mod 
+		WHERE verprtoid IN (select verprtoid from mod where oid = #modoid# AND pvsoid = #pvsoid#)
+		AND subasmcheck = 'T'
+	</select>
+		
+	
+	<!-- 협력업체 목록 -->
+	<select id="DrawMngDAO.selectCooperManageList" parameterClass="java.util.Map" resultClass="egovMap">
+		select a.*, '' active
+		from (
+			 select 
+				distcom.oid, distcom.name, distcom.teamcomoid, distcom.tel, distcom.email, distcom.labor, 
+				distcom.laborid, distcom.companycode, teamcom.name teamcomname, ROWNUM no
+			from distcom, teamcom 
+			where distcom.teamcomoid = teamcom.oid
+		) a
+		where 1 = 1
+		<isEmpty property="where">
+			and no between $start$ and $end$	
+		</isEmpty>		
+		<isNotEmpty property="id">
+		and upper(laborid) like upper('%'||#id#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and upper(labor) like upper('%'|| #name#||'%')
+		</isNotEmpty>		
+		<isNotEmpty property="teamname">
+		and upper(name) like upper('%'|| #teamname#||'%')
+		</isNotEmpty>
+		order by $orderColumn$ $dir$
+	</select>
+	
+	<select id="DrawMngDAO.selectCooperManageListCnt" resultClass="java.lang.Integer">
+		select count(*)
+		from (
+			 select 
+				distcom.oid, distcom.name, distcom.teamcomoid, distcom.tel, distcom.email, distcom.labor, 
+				distcom.laborid, distcom.companycode, teamcom.name teamcomname, ROW_NUMBER() OVER (ORDER BY distcom.oid) as no
+			from distcom, teamcom 
+			where distcom.teamcomoid = teamcom.oid
+		) a
+		where 1 = 1
+		<isNotEmpty property="id">
+		and upper(laborid) like upper('%'||#id#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and labor like '%'|| #name#||'%'
+		</isNotEmpty>		
+		<isNotEmpty property="teamname">
+		and name like '%'|| #teamname#||'%'
+		</isNotEmpty>
+		
+	</select>
+	
+	<select id="DrawMngDAO.selectDrawDistTeamList" parameterClass="java.util.Map" resultClass="egovMap">
+		select '' active, a.*
+		from (
+			select hum.name humname, hum.id humid, tit.name titname,  team.name teamname, hum.email, hum.officenum, hum.cellulaphn, distteamrel.oid, team.oid teamoid,
+				   ROWNUM no
+			from distteamrel, team, hum, (select oid, name from ccn where parentoid = 'CCN02010' ) tit 
+			where distteamrel.teamoid = team.oid
+			and distteamrel.humid = hum.id
+			and hum.titoid = tit.oid
+			order by team.oid	
+		) a 
+		where 1 = 1
+		<isEmpty property="where">
+			<isNotEmpty property="end">
+			and no between $start$ and $end$
+			</isNotEmpty>	
+		</isEmpty>
+		<isNotEmpty property="id">
+		and   upper(humid) like upper('%'||#id#||'%')
+		</isNotEmpty>	
+		<isNotEmpty property="teamname">
+		and	  teamname like '%'||#teamname#||'%'
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and   humname like '%'||#name#||'%'
+		</isNotEmpty>
+		<isNotEmpty property="distteamoid">
+		and   oid = #distteamoid#
+		</isNotEmpty>
+		<isNotEmpty property="orderColumn">
+		order by $orderColumn$ $dir$
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectDrawDistTeamListCnt" resultClass="java.lang.Integer">
+		select count(*)
+		from (
+			select hum.name humname, hum.id humid, tit.name titname,  team.name teamname, hum.email, hum.officenum, hum.cellulaphn, distteamrel.oid, team.oid teamoid,
+					ROW_NUMBER() OVER (ORDER BY team.oid ASC) as no
+			from distteamrel, team, hum, (select oid, name from ccn where parentoid = 'CCN02010' ) tit 
+			where distteamrel.teamoid = team.oid
+			and distteamrel.humid = hum.id
+			and hum.titoid = tit.oid
+			order by team.oid	
+		) a 
+		where 1 = 1
+		<isNotEmpty property="id">
+		and   upper(humid) like upper('%'||#id#||'%')
+		</isNotEmpty>	
+		<isNotEmpty property="teamname">
+		and	  teamname like '%'||#teamname#||'%'
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and   humname like '%'||#name#||'%'
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectDistDrawList" resultClass="egovMap">
+		SELECT M.OID AS MOID,P.OID AS POID,VP.OID AS VPOID,P.PNO AS PNO,P.NAM AS PNAM,	
+		       PC.NAME AS PC,PT.NAME AS PT,M.EONO AS EONO,MT.NAME AS MT,	
+		       MK.NAME AS MK,M.INDEXNO AS INDEXNO,MS.NAME AS MS, M.STAOID AS MSOID,	
+		       (SELECT AT.NAME FROM ASMTYPE AT WHERE VP.ASMTYPOID = AT.OID ) AS AT, M.PVSOID AS PVSOID,	
+		       (SELECT PV.NAME FROM PVS PV WHERE M.PVSOID = PV.OID ) AS PV, S.NAME AS SNAME,	
+		       CHANGEDATE, DZNAME AS DZ, DCNAME AS DC, M.FILENAME AS FILENAME, S.EXTNAME AS EXTNAME,	
+		       M.MODKINDOID AS MKOID, MT.DES AS MTDES, M.RFILENAME AS RFILENAME,	
+		       M.MODTYPEOID AS MTOID, M.DSZOID AS DSZOID, M.DSCOID AS DSCOID, M.MEMO AS MEMO, M.SFTOID AS SFTOID,	
+		       H.ID AS HUMID, M.CHECKDATE AS CHECKDATE, M.MODULETYPE MODULETYPE,	
+		       (SELECT APPMAIOID FROM MODAPPROVE WHERE M.MODAPPOID = OID) APPMAIOID,	
+		       M.MDMSINSERT MDMS, M.FILEPATH FILEPATH	
+		FROM   MODTYPE MT, MODKIND MK,	
+		       STA MS, HUM H, 
+		       (
+		       select M.*, DC.OID DCOID, DZ.OID DZOID, DC.NAME DCNAME, DZ.NAME DZNAME 
+		       from MOD M
+		       left outer join DSZ DZ
+		       on M.DSZOID = DZ.OID
+		       left outer join DSC DC
+		       on M.DSZOID = DC.OID	       
+	           ) M
+		       , PRT P
+		       LEFT JOIN PRTCTG PC ON P.PRTCTGOID = PC.OID	
+		       LEFT JOIN PRTTYPE PT ON  P.PRTTYPOID = PT.OID	
+		       , VERPRT VP, SFT S	
+		WHERE 1=1
+		AND    M.MODTYPEOID = MT.OID	
+		AND    M.MODKINDOID = MK.OID	
+		AND    M.STAOID = MS.OID	
+		AND    M.SFTOID = S.OID	
+		AND    M.HUMID = H.ID	
+		AND    M.VERPRTOID = VP.OID	
+		AND    VP.PRTOID = P.OID	
+	</select>
+	
+	<select id="drawing.select.distcominfo" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT DC.OID, DC.NAME, DC.TEL, DC.EMAIL, DC.TEAMCOMOID, 
+		TC.NAME TEAMCOMNAME, DC.LABOR, DC.LABORID, DC.PWD, DC.COMPANYCODE, 
+		DC.REGDATE, DC.ACCESSTIME, DCH.RECEIPTDATE, DECODE(DCH.RECEIPTFLAG,'T','수령','미수령') RECEIPTFLAG 
+		FROM   DISTCOM DC, TEAMCOM TC, DISTCOMHISTORY DCH, DIST D 
+		WHERE  DC.TEAMCOMOID = TC.OID 
+		AND    DC.OID = DCH.DISTCOMOID 
+		AND    DCH.DISTOID = D.OID 
+		AND    DC.OID = #oid#
+	</select>
+	
+	<select id="drawing.select.dthsearch" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT DT.OID OID,H.id AS USERID, H.NAME AS NAME, (select name from ccn where parentoid = 'CCN02010' and oid = H.TITOID) as TITNAME ,T.NAME TEAMNAME,H.EMAIL EMAIL
+		FROM   HUM H, TEAM T, DISTTEAMREL DT, DISTTEAMHISTORY DTH, DIST D	
+		WHERE  DT.HUMID = H.ID	
+		AND    DT.TEAMOID = T.OID	
+		AND    D.OID = DTH.DISTOID	
+		AND    DT.OID = DTH.DTROID	
+		AND    D.OID = #oid#
+	</select>
+	
+	<select id="drawing.select.distfile" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT RFILENAME, FILENAME, H.NAME, DF.REGDATE	
+		FROM   DISTFILE DF, HUM H	
+		WHERE  DF.HUMID = H.ID	
+		AND    DF.DISTOID = #distoid#
+	</select>
+	
+	<select id="drawing.select.dtrhistory" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT DT.OID OID,H.NAME AS NAME, (select name from ccn where parentoid = 'CCN02010' and oid = H.TITOID) as TITNAME, T.NAME TEAMNAME,H.EMAIL EMAIL	
+		FROM   HUM H, TEAM T, DISTTEAMREL DT	
+		WHERE  DT.HUMID = H.ID	
+		AND    DT.TEAMOID = T.OID	
+	</select>
+	
+	<!-- 결재가 진행중이거나 지연중인 결재정보가 존재하는지 체크. WFS110:진행, WFS150:지연 -->
+	<select id="drawing.select.prjapproveexist" parameterClass="java.util.Map" resultClass="egovMap"> 
+		SELECT OID	
+		FROM   PRJAPPROVE
+		WHERE  (APPSTA = 'CCN00110' OR APPSTA = 'CCN00113')	
+		AND    CHANGETYPE = 'DO'	
+		AND    WORKOID = #workoid#
+	</select>
+	
+	<select id="drawing.select.drawinfobeforedelete" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT MODTYPEOID AS MTOID, VERPRTOID, INDEXNO, PRTOID	
+		FROM   MOD M, VERPRT VP	
+		WHERE  M.VERPRTOID = VP.OID	
+		AND    M.OID = #oid#
+	</select>
+	
+	<select id="drawing.select.drawDocRefInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT dr.verdocoid, dr.reloid, dr.REF, vp.docoid 
+		FROM verdoc vp, docrel dr 
+		WHERE vp.OID = dr.verdocoid AND dr.verdocoid = #verdocoid# AND dr.reloid = #reloid#
+		drawing.select.drawDocRefInfo.types=varchar varchar	
+	</select>
+	
+	<select id="drawing.select.drawdoclist" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT verdoc.OID AS verdocoid, doc.OID AS docoid, verdoc.VERSION, 
+		       module.NAME AS modulename, doc.dno, doc.title, docctg.NAME AS docctg, 
+		       verdoc.eono, hum.NAME AS writer, verdoc.regdate, docrel.ref	
+		  FROM module, docctg, hum, verdoc, doc, docrel 
+		 WHERE doc.OID = verdoc.docoid 
+		   AND hum.ID = verdoc.humid 
+		   AND docctg.OID = doc.docctgoid 
+		   AND module.typ = verdoc.moduletype 
+		   AND verdoc.OID = docrel.verdocoid 
+		   AND verdoc.humid = hum.ID 
+		   AND docrel.reloid = #reloid#
+	</select>
+	
+	<select id="drawing.select.relexistother" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT MODOID	
+		FROM   DRAWREL 	
+		WHERE  RELOID = #reloid#
+	</select>
+	
+	<select id="drawing.select.unitdrawingprt2" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT OID 
+		FROM PRT 
+		WHERE PNO = #pno#
+	</select>
+	
+	<select id="drawing.select.unitdrawingprt" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT VP.OID AS OID 	
+		FROM   PRT P, VERPRT VP, PVS PV 	
+		WHERE  P.PNO = #pno#
+		AND    P.OID = VP.PRTOID 	
+		AND    VP.PVSOID = PV.OID 	
+		AND    PV.NAME = #name#
+	</select>
+	
+	<select id="drawing.select.unit.drawing" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT PNO	
+		FROM   MOD M, VERPRT VP, PVS PV, PRT P	
+		WHERE  P.OID = VP.PRTOID	
+		AND    VP.OID = M.VERPRTOID	
+		AND    VP.PVSOID = PV.OID	
+		AND    P.PNO = #pno#
+		AND    PV.NAME = #name#
+	</select>
+	
+	<select id="drawing.select.pvsoid" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT OID	
+		FROM   PVS	
+		WHERE  NAME = #name#
+	</select>
+	
+	<select id="drawing.select.filenameOfVerprt" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT FILENAME 
+		FROM MOD 
+		WHERE VERPRTOID = #VERPRTOID#
+	</select>
+	
+	<select id="drawing.select.ecPartList" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT PARTNO,OLDPVS,NEWPVS,ISCOMPAT,ISCODE,DES,ECOID	
+		FROM   ECPARTREVISION	
+		WHERE  PARTNO IN (SELECT PNO	
+		                  FROM   PRT	
+		                  WHERE  PNO = #pno#)	
+		AND    OLDPVS = #oldpvs#
+	</select>
+	
+	<select id="drawing.select.drawVersionList" parameterClass="java.util.Map" resultClass="egovMap">
+		   SELECT  M.OID AS MOID, MK.NAME AS MK,	
+				   (SELECT PV.NAME FROM PVS PV WHERE M.PVSOID = PV.OID ) AS VERSION, S.NAME AS SFT,	
+			       M.EONO AS EONO, TO_CHAR(M.CHANGEDATE::date, 'YYYY-MM-DD'::text) AS CHANGEDATE, M.RFILENAME AS FILENAME	
+			FROM   MOD M, SFT S, MODKIND MK, VERPRT VP	
+			WHERE  M.VERPRTOID = VP.OID	
+			AND	   M.SFTOID = S.OID	
+			AND    M.MODKINDOID = MK.OID	
+			AND    VP.PRTOID IN (SELECT PRTOID FROM VERPRT WHERE OID = #oid#)	
+		    AND    M.MODTYPEOID = #modtypeoid#
+		    AND    M.INDEXNO = #indexno#
+		    ORDER BY VERSION desc	
+	</select>
+	
+	<select id="drawing.select.unitDrawList" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT     M.OID AS MOID,P.OID AS POID,VP.OID AS VPOID,P.PNO AS PNO, MK.NAME AS MK,	
+				   (SELECT PV.NAME FROM PVS PV WHERE M.PVSOID = PV.OID ) AS VERSION, S.NAME AS SFT,	
+			       M.EONO AS EONO, TO_CHAR(M.CHANGEDATE::date, 'YYYY-MM-DD'::text) AS CHANGEDATE	
+			FROM   MOD M, PRT P, VERPRT VP, SFT S, MODKIND MK	
+			WHERE  M.SFTOID = S.OID	
+			AND    M.MODKINDOID = MK.OID	
+			AND	   M.VERPRTOID = VP.OID	
+			AND    VP.PRTOID = P.OID	
+			AND    M.DRWCHECK = 'Y'	
+		    AND    P.PARENT = (SELECT P2.OID FROM PRT P2, VERPRT VP2 WHERE P2.OID = VP2.PRTOID AND VP2.OID = #oid#)	
+	</select>
+	
+	<select id="drawing.select.checkequalpvs" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT OID	
+		FROM   MOD	
+		WHERE  PVSOID = #pvsoid#
+		AND    MODTYPEOID = #modtypeoid# 	
+		AND    VERPRTOID = #verprtoid#
+		AND    INDEXNO = #indexno#
+	</select>
+	
+	<select id="drawing.select.versionexist" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT OID AS PVSOID	
+		FROM   PVS	
+		WHERE  NAME = #name#
+	</select>
+	
+	<select id="drawing.select.modexist" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT OID AS MOID	
+		FROM   MOD	
+		WHERE  VERPRTOID = #verprtoid#
+	</select>
+	
+	<select id="drawing.select.partexist" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT VP.OID AS VPOID 	
+		FROM   PRT P, VERPRT VP, PVS PV 	
+		WHERE  P.PNO = #pno#
+		AND    P.OID = VP.PRTOID 	
+		AND    VP.PVSOID = PV.OID 	
+		AND    PV.NAME = #name#
+	</select>
+	
+	<select id="drawing.select.insertbeforecheck" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT COUNT(OID) AS CNT	
+		FROM   MOD	
+		WHERE  VERPRTOID = #verprtoid#
+		AND    MODTYPEOID = #modtypeoid#	
+		AND    LASTFLAG = 'T'	
+		AND    STAOID IN ('CCN00193','CCN00196','CCN00194', 'CCN00195')	
+	</select>
+	
+	<select id="drawing.select.subpart" parameterClass="java.util.Map" resultClass="egovMap">
+		<![CDATA[
+		SELECT  P.OID AS POID	
+		FROM    VERPRT VP, PRT P , PRTCTG PC	
+		WHERE   P.OID = VP.PRTOID	
+		AND     PC.OID = P.PRTCTGOID AND PC.COD < '119' AND PC.PARENTOID = 'PCT0000003'	
+		AND     P.PARENT IS NOT NULL AND VP.OID = #oid#
+		]]>
+	</select>
+	
+	<select id="drawing.select.predrawlist" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT  P.OID AS POID,	
+		        VP.OID AS VPOID,	
+		        M.OID AS MOID,	
+		        PV.NAME AS PV,	
+		        MT.NAME AS MT,	
+		        MK.NAME AS MK,	
+		        S.NAME AS S,	
+		        '' AS DZ,	
+		        M.INDEXNO AS INDEXNO,	
+		        M.EONO AS EONO,	
+		        M.MEMO AS MEMO,
+		        P.PARTNAMEOID,
+		        P.PNO,
+		        P.PRTCTGOID,
+		        P.CAROID,
+		        CA.NAME CARNM,
+		        PC.NAME PRTCTGNM,
+		        M.MODKINDOID,
+		        M.MODULETYPE, 
+		        M.MODTYPEOID, 
+		        M.DSCOID,
+		        M.DSZOID,
+		        M.PVSOID, 
+		        M.CARNAME,
+		        M.SUBASMCHECK
+		FROM    MODTYPE MT, MODKIND MK, SFT S, PVS PV,	
+		        HUM H, MOD M, PRT P,VERPRT VP	
+		WHERE   M.MODTYPEOID = MT.OID 	
+		AND     M.MODKINDOID = MK.OID	
+		AND     M.SFTOID = S.OID	
+		AND     M.HUMID = H.ID	
+		AND     M.PVSOID = PV.OID 	
+		AND     M.VERPRTOID = VP.OID 	
+		AND     VP.PRTOID = P.OID 	
+		AND     M.LASTFLAG = 'T'	
+		AND		VP.OID = #oid#
+		ORDER BY M.MODTYPEOID,M.MODKINDOID,M.INDEXNO,P.NAM	
+	</select>
+	
+<!-- 	<select id="drawing.select.dsc" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT oid, decode('KR',?, name, cname) name FROM dsc
+	</select> -->
+	
+	<select id="drawing.select.dsz" resultClass="egovMap">
+		SELECT oid, name FROM dsz
+	</select>
+	
+	<select id="drawing.select.sft" resultClass="egovMap">
+		SELECT oid, name, extname FROM sft WHERE iscad = 'T'
+	</select>
+	
+	<select id="drawing.select.modkind" resultClass="egovMap">
+		SELECT oid, name FROM modkind
+	</select>
+	
+<!-- 	<select id="drawing.select.modtype" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT oid, decode('KR',?, name, cname) name, des FROM modtype
+	</select> -->
+	
+<!-- 	<select id="drawing.select.status" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT oid, decode('KR',?, name, cname) name FROM sta WHERE DES = 'P'
+	</select>
+	
+	<select id="drawing.select.asmtype" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT oid, decode('KR',?, name, cname) name FROM asmtype
+	</select>
+	
+	<select id="drawing.select.prttype" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT oid, decode('KR',?, name, cname) name FROM prttype
+	</select> -->
+
+	<select id="DrawMngDAO.selectDrawDocRefInfo" parameterClass="java.util.Map"  resultClass="egovMap">		
+		SELECT dr.verdocoid, dr.reloid, dr.REF, vp.docoid, vp.staoid,
+				case when (select count(*) from verdoc where docoid in (select docoid from verdoc where oid = vp.oid ))=1 then 'single'
+			else 'multi' end docvernum
+		  FROM verdoc vp, docrel dr
+		 WHERE vp.OID = dr.verdocoid 
+		 AND dr.reloid = #modoid#
+		 <isNotEmpty property="verdocoid">
+		 AND dr.verdocoid = #verdocoid#
+		 </isNotEmpty> 
+	</select>
+	
+	<delete id="DrawMngDAO.deleteDrawDocInfo" parameterClass="java.util.Map" >
+	 	DELETE FROM docrel
+      	WHERE verdocoid = #verdocoid# AND reloid = #modoid#
+ 	</delete>
+ 	
+ 	<update id="DrawMngDAO.updateDrawDocRel" parameterClass="java.util.Map" >	
+	 	UPDATE docrel 
+	   	SET REF = 'T' 
+	 	WHERE verdocoid = #verdocoid# AND reloid = #reloid#
+	 </update>
+	 
+	 <!-- 도면개정(상세정보) -->
+	 <select id="DrawMngDAO.retrieveDrawVersionList" parameterClass="java.util.Map"  resultClass="egovMap">		
+			 select m.oid as modoid, m.dno, m.mversion, m.eono, modtype.name as modtypename, to_char(m.changedate, 'yyyy-mm-dd') changedate 
+			 from mod m 						 	 
+			 left join engctgview car		 	 
+			 on m.caroid = car.oid  	
+			 left join ccn prttype
+			 on m.prttypeoid = prttype.oid		 	 
+			 left join ccn moduletype 		 	 
+			 on m.moduletype = moduletype.oid     
+			 left join ccn modtype    			 
+			 on m.modtypeoid = modtype.oid   	 
+			 left join ccn modsize 				 
+			 on m.modsizeoid = modsize.name 		 
+			 left join ccn devstep 		
+			 on m.devstep = devstep.oid    	 
+			 inner join ccn sta  				 
+			 on m.staoid = sta.oid  				 
+			 inner join hum h  					 
+			 on m.reghumid = h.id			 	
+			 where 1=1 and m.dno=#dno# 
+			 <isNotEmpty property="targetoid">
+				 and m.oid != #targetoid# 
+	   		 </isNotEmpty> 
+			 order by cast(m.mversion as integer) desc	
+	</select>
+	 
+	<!-- Bom비교 도면 리스트 -->
+	<select id="DrawMngDAO.retrieveDrawList" parameterClass="java.util.Map"  resultClass="egovMap">		
+			 select m.oid as modoid, m.dno, m.mversion, m.eono, modtype.name as modtypename, to_char(m.changedate, 'yyyy-mm-dd') changedate 
+			 from mod m 						 	 
+			 left join engctgview car		 	 
+			 on m.caroid = car.oid  	
+			 left join ccn prttype
+			 on m.prttypeoid = prttype.oid		 	 
+			 left join ccn moduletype 		 	 
+			 on m.moduletype = moduletype.oid     
+			 left join ccn modtype    			 
+			 on m.modtypeoid = modtype.oid   	 
+			 left join ccn modsize 				 
+			 on m.modsizeoid = modsize.name 		 
+			 left join ccn devstep 		
+			 on m.devstep = devstep.oid    	 
+			 inner join ccn sta  				 
+			 on m.staoid = sta.oid  				 
+			 inner join hum h  					 
+			 on m.reghumid = h.id			 	
+			 where 1=1 and m.prttypeoid != 'CCN11683'
+			 <isNotEmpty property="srchBomPartNum">
+			 	 and m.dno  like #srchBomPartNum# || '%'
+			 </isNotEmpty> 
+			 <isNotEmpty property="targetoid">
+				 and m.oid != #targetoid# 
+	   		 </isNotEmpty> 
+			 order by m.oid, m.mversion desc	
+	 </select>
+	 
+	 <!-- ERP BOM리스트 -->
+	 <select id="DrawMngDAO.retrieveUnitDrawList" parameterClass="java.util.Map"  resultClass="egovMap">		
+		SELECT     M.OID AS MOID, MK.NAME AS MK,	
+				   (SELECT PV.NAME FROM (select * from ccn where parentoid = 'CCN02097') PV WHERE M.PVSOID = PV.OID ) AS VERSION, '' AS SFT,	
+			       M.EONO AS EONO, TO_CHAR(M.CHANGEDATE::date, 'YYYY-MM-DD'::text) AS CHANGEDATE, M.RFILENAME AS FILENAME	
+			FROM  MOD M,  
+				   (select * from ccn where parentoid = 'CCN00063' ) MK, 
+				   VERPRT VP
+			WHERE  M.VERPRTOID = VP.OID	
+			AND    M.MODKINDOID = MK.OID	
+			AND    VP.PRTOID IN (SELECT PRTOID FROM VERPRT WHERE OID = #verprtoid#)	
+		    AND    M.MODTYPEOID = #modtypeoid#
+		    AND    M.INDEXNO = #indexno# 
+		    ORDER BY VERSION desc
+	</select>
+	 
+	 <!-- 설변정보 리스트 -->
+	 <select id="DrawMngDAO.retrieveEcPartList" parameterClass="java.util.Map"  resultClass="egovMap">		
+		SELECT oid, eno, title, ectypoid, ectype, regdat, aprdat, sta, humname 
+        FROM
+            (   
+            SELECT row_number() over ()as ROW_NUMBER,
+                e.OID,
+                e.eno,
+                e.nam title,
+                e.ectypoid,
+                getEcResInfo(e.ecresetc) AS ectype,
+				e.regdat,
+				ea.aprdate aprdat,
+				s.name AS sta ,
+				h.name as humname    
+        FROM ec e left join (select * from engctgview) c on c.oid = e.aplmod  
+		left join ecapprove ea on ea.oid = e.ecappoid   
+		left join hum h on h.id = e.humid  
+		inner join (select * from ccn where parentoid ='CCN00190' ) s
+		on e.staoid = s.oid 
+		inner join mod m 
+		on e.dwgno = m.dno 
+		WHERE e.dwgno = #dno#
+		ORDER BY e.ecindex  
+        ) wraper WHERE ROW_NUMBER = 1 
+		<!-- SELECT r.* FROM ( SELECT row_number() over ()as ROW_NUMBER, wraper.* FROM ( 
+			       SELECT   e.OID, e.eno, e.nam, e.staoid,  
+					e.humid, e.regdat, e.ecresetc,  
+					e.des, e.ecnamoid, case when e.ecnamoid = 'ECO' then '통보서' else '의뢰서' end ecnam, 
+				    e.ectypoid, e.disbas, e.aplmod, ea.appmaioid, ea.aprdate aprdat, e.disbasetc, 
+					e.ecgoods, e.godgroup, e.iserp, e.erpcheck, e.ecgroupno, e.ecindex, e.parttp,  
+					e.carname AS carname, h.NAME AS humname , s.name as staname ,e.eocheck as eocheck, e.costcheck as costcheck, 
+					e.diecheck as diecheck, e.prdname as prdname, e.dwgno as dwgno, c.name as enginename, e.ecdis AS ecdis, 
+					e.partgrade as partgrade , e.ecdeal as ecdeal, e.ecfac as ecfac, e.ea as ea, e.ecdocno as ecdocno, m.oid as modoid  
+		FROM ec e left join (select * from engctgview) c on c.oid = e.aplmod  
+		left join ecapprove ea on ea.oid = e.ecappoid   
+		left join hum h on h.id = e.humid  
+		inner join (select * from ccn where parentoid ='CCN00190' ) s
+		on e.staoid = s.oid 
+		inner join prt p 
+		on e.dwgno = p.pno 
+		inner join verprt vp 
+		on p.oid = vp.prtoid 
+		inner join mod m 
+		on vp.oid = m.verprtoid 
+		WHERE e.dwgno = #pno#
+		ORDER BY e.ecindex  
+        ) wraper ) r WHERE ROW_NUMBER = 1 
+        -->
+	</select>
+	
+	 
+	 <!-- 관련모듈oid -->
+	 <select id="DrawMngDAO.selectRelationModuleOid" parameterClass="java.util.Map"  resultClass="egovMap">		
+		SELECT RELOID FROM DRAWREL WHERE MODOID = #moid#
+	</select>
+	 
+	 <!-- 관련 프로젝트 모듈정보 -->
+	 <select id="DrawMngDAO.selectProjectModuleInfo" parameterClass="java.util.Map"  resultClass="egovMap">		
+		$strSql$
+	</select>
+
+	<!-- 3D파일 리스트(상세정보) -->
+	<select id="DrawMngDAO.retrieveSubAssemblyInfo" parameterClass="java.util.Map"  resultClass="egovMap">		
+	    select mf.oid, mf.version, m.oid as modoid, mf.filename,mf.rfilename, mf.filesize, mf.indexno, mf.masterflag as mk, m.reghumid humid, to_char(mf.checkdate,'yyyy-mm-dd hh24:mm:ss') checkdate, to_char(mf.regdate,'yyyy-mm-dd') regdate
+	    from mod m 
+		inner join modfiles mf
+		on m.oid = mf.modoid
+		inner join hum h
+        on m.reghumid = h.id
+		where m.oid = #modoid#
+		<isNotEmpty property="masterflag">
+			and mf.masterflag = #masterflag#
+		</isNotEmpty> 
+		order by cast(indexno as integer) 
+	</select>
+	
+	<!-- 마스터 파일 정보 조회 -->
+	<select id="DrawMngDAO.retrieveMasterFileInfo" parameterClass="java.util.Map"  resultClass="egovMap">		
+	    select m.oid as modoid, mf.filename, mf.rfilename, mf.filesize, mf.indexno, mf.masterflag as mk, to_char(m.changedate,'yyyy-mm-dd') changedate
+	    from mod m 
+		inner join modfiles mf
+		on m.oid = mf.modoid
+		where m.oid = #modoid# and m.masterflag = 'T'
+	</select>
+	
+
+	<!-- 개정생성 -->
+	<insert id="DrawMngDAO.drawing.insert.drawingregistration" parameterClass="java.util.Map"  >		
+		INSERT INTO MOD( OID, VERPRTOID, INDEXNO, MODKINDOID, DSZOID,	
+		DSCOID, MODTYPEOID, HUMID, SFTOID, EONO,	
+		STAOID, FILEPATH, FILENAME, RFILENAME, MDMSINSERT, MEMO, PVSOID, LASTFLAG, MODULETYPE, CARNAME, DRWCHECK)	
+		VALUES  (#modoid#, #verprtoid#, #indexno#, #mkoid#, #dzoid#, #dcoid#, #mtoid#, #humid#, 'CCN00192', #sftoid#, #eono#, #filepath#, 'F', 
+		#dbfilename#, #rfilename#, #memo#, #pvsoid#, 'T', #moduletype#, #carname#, #drwcheck#)
+	</insert>
+
+	<!-- 도면 등록 프로세스에서 프로젝트 모듈에서 호출된 등록일 경우 등록한다. -->
+	<insert id="DrawMngDAO.insertDrawRelationInfoRef" parameterClass="java.util.Map"  >		
+		INSERT INTO drawrel(modoid, reloid, ref) 
+		VALUES(#modoid#, #reloid#, #ref#)
+	</insert>
+	
+	<!-- 도면 등록 프로세스에서 프로젝트 모듈에서 호출된 등록일 경우 등록한다. -->
+	<insert id="DrawMngDAO.insertDrawRelationInfoDocRef" parameterClass="java.util.Map"  >		
+		INSERT INTO DOCREL 
+		SELECT VERDOCOID, #modoid#, #ref#
+		FROM   DOCREL	
+		WHERE  RELOID = #oldmodoid#
+	</insert>
+
+	<!-- 3D도면 등록시 폴더안에 파일 등록 -->
+	<insert id="DrawMngDAO.registerAsmFileInfo" parameterClass="java.util.Map"  >		
+		INSERT INTO public.asmfile(
+            modoid, filepath, filename, dbfilename, filesize, ext, seq, distchk)
+   		VALUES (#modoid#, #filepath#, #filename#, #dbfilename#, #filesize#, #ext#, #seq#, #distchk#)
+	</insert>
+
+	<!-- 3D도면 등록시 폴더안에 파일 조회 -->
+	<select id="DrawMngDAO.selectAsmFileInfo" parameterClass="java.util.Map"  >		
+		SELECT modoid, filepath, filename, dbfilename, filesize, ext, seq 
+		FROM public.asmfile
+        WHERE modoid = #modoid#
+	</select>
+
+	<!-- 개정등록시 AsmFile 복사등록 -->
+	<insert id="DrawMngDAO.registerAsmFileCopyInfo" parameterClass="java.util.Map"  >		
+		INSERT INTO ASMFILE
+		(SELECT #modoid#, filename, filesize, ext, seq, regdate, filepath, dbfilename, distchk
+		FROM ASMFILE
+		WHERE MODOID = #oldmodoid#)
+	</insert>
+	
+	<!-- AsmFile 도면체크 수정 -->
+	<update id="DrawMngDAO.updateDistAsmFile" parameterClass="java.util.ArrayList" >
+		<dynamic>
+			<iterate>
+				UPDATE ASMFILE SET distchk = #[].distchk#
+				WHERE MODOID = #[].modoid#
+				AND filename = #[].filename# ;
+			</iterate>
+		</dynamic>
+	</update>
+		
+	<!-- 3D도면 등록시 폴더안에 파일정보 삭제 -->
+	<delete id="DrawMngDAO.deleteAsmFileInfo" parameterClass="java.util.Map"  >		
+		DELETE FROM asmfile
+        WHERE modoid = #modoid#
+        <isNotEmpty property="seq">
+        AND seq = #seq#
+        </isNotEmpty>
+        <isNotEmpty property="filename">
+        AND filename = #filename#
+        </isNotEmpty>
+	</delete>
+	
+	<!-- 엔진 --> 
+	<select id="DrawMngDAO.selectCatEngList" parameterClass="java.util.Map" resultClass="egovMap">
+			SELECT * FROM engctgview
+			WHERE oid != 'CCN00201'
+			ORDER BY PATH
+			<!-- 
+			WITH RECURSIVE 
+			search_enginfo(oid, name, seq, des, parentoid, isuse, level, PATH) as
+			(
+			select oid, name, seq, des, parentoid, isuse, 1, array[oid]::varchar[]
+			from   ccn     
+			where  oid = 'CCN00201'
+	        union  all
+			select c.oid, c.name, c.seq, c.des, c.parentoid, c.isuse, level + 1, PATH || c.oid::varchar
+			from   ccn c, search_enginfo d
+			where  c.parentoid = d.oid
+	        )   
+	        select oid, name, seq, des, parentoid, isuse, level, PATH
+			from   search_enginfo ORDER BY PATH
+			-->
+	</select>
+	
+	<!-- 파트 --> 
+	<select id="DrawMngDAO.selectCatPrtList" parameterClass="java.util.Map" resultClass="egovMap">
+			SELECT * FROM prtctgview
+			WHERE oid != 'CCN00265'
+			ORDER BY PATH
+			<!-- 
+			WITH RECURSIVE 
+			search_prtinfo(oid, name, seq, des, parentoid, isuse, level, PATH) as
+			(
+			select oid, name, seq, des, parentoid, isuse, 1, array[oid]::varchar[]
+			from   ccn     
+			where  oid = 'CCN00265'
+	        union  all
+			select c.oid, c.name, c.seq, c.des, c.parentoid, c.isuse, level + 1, PATH || c.oid::varchar
+			from   ccn c, search_prtinfo d
+			where  c.parentoid = d.oid
+	        )   
+	        select oid, name, seq, des, parentoid, isuse, level, PATH
+			from   search_prtinfo ORDER BY PATH
+			-->
+	</select>	
+	
+	<insert id="DrawMngDAO.insertDistTeamHum" parameterClass="java.util.Map">
+		INSERT INTO DISTTEAMREL	
+		( OID, HUMID, TEAMOID )	
+		VALUES ( #oid#, #humid#, #teamoid# )	
+	</insert>
+	
+	<delete id="DrawMngDAO.deleteDistTeamHum" parameterClass="java.lang.String">
+		DELETE FROM DISTTEAMREL
+		WHERE OID = #oid#
+	</delete>
+	
+	<select id="DrawMngDAO.selectPvsOidF" resultClass="egovMap" parameterClass="java.util.Map">
+		SELECT OID	
+		FROM   PVS	
+		WHERE  NAME = #name#
+	</select>
+	
+	<insert id="DrawMngDAO.insertDrawRelInfo" parameterClass="java.util.Map">
+		INSERT INTO DRAWREL	
+		( MODOID, RELOID, REF )	
+		VALUES ( #modoid#, #reloid#, 'F')			
+	</insert>
+	
+	<update id="updateDrawMaxVersion" parameterClass="java.util.Map">
+		UPDATE MOD
+		SET    LASTFLAG = DECODE( PVSOID, ( SELECT OID FROM PVS WHERE SEQ IN (	
+		                                      SELECT MAX(PV.SEQ)	
+		                                      FROM   MOD M, PVS PV
+		                                      WHERE  M.PVSOID = PV.OID	
+		                                      AND    M.MODTYPEOID = #modTypeOid#	
+		                                      AND    M.VERPRTOID = #verprtOid#	
+		                                      AND    M.INDEXNO = #indexno#	
+	<isNotEqual compareProperty="mtoid" compareValue="MOT100">
+			                                  AND    M.PVSOID != 'PVS999'	
+	</isNotEqual>
+		                                      ) )	
+		                  ,'T','F' )	
+		WHERE  MODTYPEOID = #modTypeOid#	
+		AND    VERPRTOID = #verprtOid#	
+	</update>
+	
+	<select id="DrawingMngDAO.selectProjectApproveExist" parameterClass="java.util.Map">
+		SELECT OID 
+		FROM   PRJAPPROVE 
+		WHERE  APPSTA = 'WFS110' 
+		AND    CHANGETYPE = 'DO' 
+		AND    WORKOID = #workoid#		
+	</select>
+	
+	<select id="DrawMngDAO.selectIndexno" parameterClass="java.util.Map" resultClass="java.lang.Integer">
+		SELECT MAX(cast(M.INDEXNO as integer))+1 AS INDEXNO 
+		FROM MOD M 
+		WHERE M.VERPRTOID = #verprtoid# AND M.MODTYPEOID = #modtypeoid# AND M.PVSOID = #pvsoid#
+	</select>
+	
+	<insert id="DrawMngDAO.insertDrawingregistration" parameterClass="java.util.Map">
+		INSERT INTO MOD ( 
+			OID, VERPRTOID, INDEXNO, MODKINDOID, DSZOID,	
+			DSCOID, MODTYPEOID, HUMID, SFTOID, EONO,	
+			STAOID, FILEPATH, FILENAME, RFILENAME, MDMSINSERT, MEMO, PVSOID, LASTFLAG, 
+			MODULETYPE,CARNAME,DRWCHECK
+		)	
+		VALUES  (
+			#oid#, #verprtoid#, #indexno#, #nodkindoid#, #dszoid#, #dscoid#, #modtypeoid#, 
+			#humid#, #sftoid#, #eono#, 'CCN00192', #filepath#, #filename#, #rfilename#, 'F', 
+			#memo#, #pvsoid#, #lastflag#, #moduletype#, #drwcheck#
+		)	
+	</insert>
+	
+	<insert id="DrawMngDAO.insertProjectStageApprove" parameterClass="java.util.Map">
+		INSERT INTO prjapprove(oid, prjstageoid, stagerevision, humid, appsta, workoid) 
+		VALUES(#oid#, #prjstageoid#, #stagerevision#, #humid#, #appsta#, #workoid#)
+	</insert>
+	
+	<!--  ******************************** 도면배포 쿼리Start ******************************** -->
+	<insert id="DrawMngDAO.insertDrawDistCom" parameterClass="java.util.Map">
+		INSERT INTO distcom(
+		            oid, name, teamcomoid, tel, email, labor, laborid, regdate, pwd, companycode)
+		VALUES (#oid#, #name#, #teamcomoid#, #tel#, #email#, #labor#, #id#, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), #password#, #companycode#);
+	</insert>
+	
+	<delete id="DrawMngDAO.deleteDrawDistCom" parameterClass="java.lang.String">
+		delete from distcom where oid = #oid#
+	</delete>
+	
+	<insert id="DrawMngDAO.insertDist" parameterClass="java.util.Map">
+		INSERT INTO public.dist(
+		            oid, title, content, humid, disthumid, distflag, teamcomoid, 
+		            modtypeoid, dszoid, caroid, eono, verprtoid, pctoid, regdate, 
+		            pno, partname)
+		VALUES (#distoid#, #title#, #content#, #id#, #disthumid#, 'F', #teamcomid#, 
+		            #modtypeoid#, #dszoid#, #engCtgOid#, #eono#, #verprtoid#, #pctoid#, to_char(now(), 'YYYY-MM-DD HH24:MI:SS'), 
+		            #pno#, #partkindname#);
+	</insert>
+	
+	<!-- 사내용 도면배포 리스트 -->
+	<select id="DrawMngDAO.selectDistSearching" parameterClass="java.util.Map" resultClass="egovMap">
+<!-- 		SELECT *
+		FROM (
+			SELECT DISTINCT D.OID, D.TITLE, D.CONTENT, D.HUMID, D.DISTHUMID,  
+			        D.DISTFLAG, D.MODTYPEOID, D.DSZOID, D.CAROID,  
+			        D.CARNAME, D.PARTNAME, MT.NAME AS MODTYPENAME,   
+			        H1.NAME AS HUMNAME, H2.NAME AS DISTHUMNAME,  case D.DISTFLAG when 'F' then 'N' else 'Y' end as FLAG,  
+			        D.EONO, D.VERPRTOID, D.REGDATE, D.DISTDATE, D.PCTOID, D.PNO,  
+			        ROW_NUMBER() OVER (ORDER BY D.OID ASC) as no
+			 FROM   DIST D Left outer Join HUM H2 On H2.ID = D.DISTHUMID, HUM H1, CCN MT, DISTTEAMHISTORY DTH, DISTTEAMREL DTR   
+			 WHERE  D.HUMID = H1.ID  
+			 AND    D.DISTHUMID = H2.ID
+			 AND    D.MODTYPEOID = MT.OID  
+			 AND    D.OID = DTH.DISTOID  
+			 AND    DTH.DTROID = DTR.OID  	
+			 <isNotEmpty property="title">
+			 AND    D.TITLE LIKE '%$title$%'
+			 </isNotEmpty>	 
+			 <isNotEmpty property="carname">
+			 AND    D.CARNAME LIKE '%$carname$%'
+			 </isNotEmpty>			 
+			 <isNotEmpty property="pno">
+			 AND    D.PNO LIKE '%$pno$%'	
+			 </isNotEmpty>			 
+			 <isNotEmpty property="partname">
+			 AND    D.PARTNAME LIKE '%$partname$%'
+			 </isNotEmpty>		
+			 <isNotEmpty property="eono">
+			 AND    D.EONO LIKE '%$eono$%'
+			 </isNotEmpty>		 	
+	 		 <isNotEmpty property="distyn">
+			 AND    D.DISTFLAG = #distyn#
+			 </isNotEmpty>	
+			 AND	D.HUMID = #humid#
+			) A
+		WHERE	no between $start$ and $end$
+		order by no -->
+		SELECT A.*, ROWNUM no
+		FROM (
+		   	 SELECT DISTINCT D.OID, D.TITLE, D.CONTENT, D.HUMID, D.DISTHUMID,  
+				        D.DISTFLAG, D.MODTYPEOID, D.DSZOID, D.CAROID, C.NAME enginename, 
+				        C.NAME CARNAME, D.PARTNAME, MT.NAME AS MODTYPENAME,
+				        H1.NAME AS HUMNAME, H2.NAME AS DISTHUMNAME,  case D.DISTFLAG when 'F' then 'N' else 'Y' end as FLAG,  
+				        D.EONO, D.VERPRTOID, D.REGDATE, D.DISTDATE, D.PCTOID, D.PNO    
+				 FROM   DIST D  
+				 INNER JOIN HUM H1  
+				 ON D.HUMID = H1.ID  
+				 LEFT JOIN HUM H2  
+				 ON D.DISTHUMID = H2.ID  
+				 LEFT JOIN ccn C 
+				 ON D.CAROID = C.OID  
+				 INNER JOIN ccn MT  
+				 ON D.MODTYPEOID = MT.OID  
+				 LEFT JOIN PRTCTGview PC  
+				 ON D.PCTOID = PC.OID  
+				 LEFT JOIN DISTCOMHISTORY DCH  
+				 ON D.OID = DCH.DISTOID    
+				 LEFT JOIN DISTCOM DC  
+				 ON DCH.DISTCOMOID = DC.OID    
+				 LEFT JOIN ccn DS    
+				 ON D.DSZOID = DS.OID    
+				 LEFT JOIN ENGCTGVIEW ENGINE  
+				 ON D.CAROID = ENGINE.OID
+				 WHERE 1=1
+				 AND (D.APPFLAG = 'Y' OR D.APPFLAG IS NULL) 
+				 <isNotEmpty property="distflag">
+				 	AND    D.DISTFLAG = #distflag#
+				 </isNotEmpty>
+				 <isNotEmpty property="eono">
+				 	AND    UPPER(D.EONO) LIKE UPPER('%$eono$%')
+				 </isNotEmpty>	
+				 <isNotEmpty property="partname">
+				 	AND    UPPER(D.PARTNAME) LIKE UPPER('%$partname$%')
+				 </isNotEmpty>	
+				 <isNotEmpty property="title">
+				 	AND    UPPER(D.TITLE) LIKE UPPER('%$title$%')
+				 </isNotEmpty>	 
+				 <isNotEmpty property="engine">
+				 	AND    UPPER(D.CARNAME) LIKE UPPER('%$engine$%')
+				 </isNotEmpty>			 
+				 <isNotEmpty property="pno">
+				 	AND    UPPER(D.PNO) LIKE UPPER('%$pno$%')	
+				 </isNotEmpty>				 
+		) A
+		ORDER BY $orderColumn$ $dir$
+	</select>
+	
+	<!-- 협력업체용 도면배포 리스트 -->
+	<select id="DrawMngDAO.selectCooperDistSearching" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT A.*, ROWNUM no
+		FROM (
+		  SELECT DISTINCT D.OID, D.TITLE, D.CONTENT, D.HUMID, D.DISTHUMID,    
+		        D.DISTFLAG, D.MODTYPEOID, D.DSZOID, D.CAROID,    
+	     	    D.CARNAME CARNAME, PC.NAME PCTNAME, MT.NAME MODTYPENAME,     
+		        H1.NAME HUMNAME, H2.NAME DISTHUMNAME,
+		      	CASE WHEN DCH.RECEIPTFLAG = 'F' THEN 'N' ELSE 'Y' END AS FLAG, D.PARTNAME,     
+		       	D.EONO, D.VERPRTOID, D.REGDATE, D.DISTDATE, D.PCTOID, D.PNO, '' DSZNAME, DCH.RECEIPTFLAG, DCH.DISTCOMOID    
+		 FROM   DIST D  
+		 INNER JOIN HUM H1  
+		 ON D.HUMID = H1.ID  
+		 LEFT JOIN HUM H2  
+		 ON D.DISTHUMID = H2.ID  
+		 LEFT JOIN ENGCTGVIEW C 
+		 ON D.CAROID = C.OID  
+		 INNER JOIN (select * from ccn where parentoid ='CCN00058' ) MT  
+		 ON D.MODTYPEOID = MT.OID  
+		 LEFT JOIN PRTCTGVIEW PC  
+		 ON D.PCTOID = PC.OID  
+		 INNER JOIN DISTCOMHISTORY DCH  
+	     ON D.OID = DCH.DISTOID    
+		 INNER JOIN DISTCOM DC  
+		 ON DCH.DISTCOMOID = DC.OID    
+		 WHERE 1=1    
+		 AND    D.DISTFLAG = 'T' 
+		 AND    (D.APPFLAG = 'T'  OR D.APPFLAG IS NULL)
+		 <isNotEmpty property="distflag">
+			AND    DCH.RECEIPTFLAG = #flag#
+		 </isNotEmpty>
+		 <isNotEmpty property="eono">
+		 	AND    UPPER(D.EONO) LIKE UPPER('%$eono$%')
+		 </isNotEmpty>	
+		 <isNotEmpty property="partname">
+		 	AND    UPPER(D.PARTNAME) LIKE UPPER('%$partname$%')
+		 </isNotEmpty>	
+		 <isNotEmpty property="title">
+		 	AND    UPPER(D.TITLE) LIKE UPPER('%$title$%')
+		 </isNotEmpty>	 
+		 <isNotEmpty property="engine">
+		 	AND    UPPER(D.CARNAME) LIKE UPPER('%$engine$%')
+		 </isNotEmpty>			 
+		 <isNotEmpty property="pno">
+		 	AND    UPPER(D.PNO) LIKE UPPER('%$pno$%')	
+		 </isNotEmpty>		
+		 <isNotEmpty property="humid">			 
+		 AND	D.HUMID = #humid#
+		 </isNotEmpty>
+		 <isNotEmpty property="laborid">			 
+		 AND	DC.LABORID = #laborid#
+		 </isNotEmpty>
+		) A
+		ORDER BY $orderColumn$ $dir$
+	</select>
+	
+	<select id="DrawMngDAO.selectDistSearchingCnt" parameterClass="java.util.Map" resultClass="java.lang.Integer">
+		SELECT count(*) cnt  
+		 FROM   DIST D Left outer Join HUM H2 On H2.ID = D.DISTHUMID, HUM H1, MODTYPE MT, DISTTEAMHISTORY DTH, DISTTEAMREL DTR   
+		 WHERE  D.HUMID = H1.ID  
+		 AND    D.DISTHUMID = H2.ID
+		 AND    D.MODTYPEOID = MT.OID  
+		 AND    D.OID = DTH.DISTOID  
+		 AND    DTH.DTROID = DTR.OID  	
+		 <isNotEmpty property="title">
+		 AND    D.TITLE LIKE '%$title$%'
+		 </isNotEmpty>	 
+		 <isNotEmpty property="carname">
+		 AND    D.CARNAME LIKE '%$carname$%'
+		 </isNotEmpty>			 
+		 <isNotEmpty property="pno">
+		 AND    D.PNO LIKE '%$pno$%'	
+		 </isNotEmpty>			 
+		 <isNotEmpty property="partname">
+		 AND    D.PARTNAME LIKE '%$partname$%'
+		 </isNotEmpty>		
+		 <isNotEmpty property="eono">
+		 AND    D.EONO LIKE '%$eono$%'
+		 </isNotEmpty>		 	
+ 		 <isNotEmpty property="distyn">
+		 AND    D.DISTFLAG = #distyn#
+		 </isNotEmpty>	
+		 AND	D.HUMID = #humid#
+	</select>
+	
+	<delete id="DrawMngDAO.deleteCooperManage" parameterClass="java.lang.String">
+		delete from distcom where oid = #oid#
+	</delete>
+	
+	<update id="DrawMngDAO.updateDrawDistCom" parameterClass="java.util.Map">
+		UPDATE public.distcom
+		   SET name=#name#, teamcomoid=#teamcomoid#, tel=#tel#, email=#email#, labor=#labor#, laborid=#laborid#, 
+		       pwd=#password#, companycode=#companycode#
+		 WHERE oid = #oid#	
+	</update>
+	
+	<insert id="DrawMngDAO.insertDistAttachFile" parameterClass="java.util.Map">
+		INSERT INTO DISTFILE	
+		( OID, DISTOID, HUMID, RFILENAME, FILENAME )	
+		VALUES ( #oid#, #distoid#, #humid#, #rfilename#,  #filename# )		
+	</insert>
+
+	<select id="DrawMngDAO.selectDistInsideListCnt" parameterClass="java.lang.String" resultClass="java.lang.Integer">
+		select 	count(*)
+		from 	dist, distteamhistory, 
+			(
+			select  hum.name humname, team.name teamname, tit.name titname, hum.email, distteamrel.oid  
+			from 	hum, team, distteamrel, (select oid, name from ccn where parentoid = 'CCN02010' ) tit 
+			where 	distteamrel.humid = hum.id
+			and 	distteamrel.teamoid = team.oid
+			and 	hum.titoid = tit.oid
+			) distteamrel
+		where 	dist.oid = distteamhistory.distoid
+		and	distteamrel.oid = distteamhistory.dtroid
+		and 	distoid = #distoid#	
+	</select>
+	
+	<select id="DrawMngDAO.selectDistInsideList" parameterClass="java.lang.String" resultClass="egovMap">
+		select 	distteamrel.*
+		from 	dist, distteamhistory, 
+			(
+			select  hum.name humname, team.name teamname, tit.name titname, hum.email, distteamrel.oid  
+			from 	hum, team, distteamrel, (select oid, name from ccn where parentoid = 'CCN02010' ) tit 
+			where 	distteamrel.humid = hum.id
+			and 	distteamrel.teamoid = team.oid
+			and 	hum.titoid = tit.oid
+			) distteamrel
+		where 	dist.oid = distteamhistory.distoid
+		and	distteamrel.oid = distteamhistory.dtroid
+		and 	dist.oid = #distoid#
+	</select>
+	
+	<select id="DrawMngDAO.selectDistDrawFileList" parameterClass="java.lang.String" resultClass="egovMap">
+		select 	distfile.*, hum.name humname, '' active
+		from 	distfile, dist, hum 
+		where 	dist.oid = distfile.distoid 
+		and	hum.id = distfile.humid
+		and  	dist.oid = #distoid#	
+	</select>
+	
+	<select id="DrawMngDAO.selectDistDrawFileListCnt" parameterClass="java.lang.String" resultClass="java.lang.Integer">
+		select 	count(*)
+		from 	distfile, dist, hum 
+		where 	dist.oid = distfile.distoid 
+		and	hum.id = distfile.humid
+		and  	dist.oid = #distoid#	
+	</select>
+	
+	<select id="DrawMngDAO.selectDistDrawingList" resultClass="egovMap" parameterClass="java.lang.String">
+		SELECT ROWNUM no, M.OID AS OID,P.OID AS POID,VP.OID AS VPOID,P.PNO AS PNO,P.nam PNAM,       
+              '' MODULENAME, '' active,  
+               PC.NAME AS PC,PT.NAME AS PT,M.EONO AS EONO,MT.NAME AS MT,   
+               '' MK,'' INDEXNO,MS.NAME AS MS, M.STAOID AS MSOID,   
+               '' AT,   
+              vp.pversion pv,   
+               H.ID AS HUMID, mf.RFILENAME, mf.FILENAME, CAR.NAME CARNAME  
+        FROM  MOD M
+               INNER JOIN drawrel dr on M.oid = dr.modoid
+               INNER JOIN VERPRT vp on vp.oid = dr.reloid
+               INNER JOIN PRT p on vp.prtoid = p.oid
+               LEFT JOIN CCN PC ON P.PRTCTGOID = PC.OID   
+               LEFT JOIN CCN PT ON P.PRTTYPOID = PT.OID  
+               INNER JOIN CCN MT ON M.MODTYPEOID = MT.OID       
+               INNER JOIN CCN MS ON M.STAOID = MS.OID        
+               INNER JOIN HUM H ON  M.REGHUMID = H.ID           
+               INNER JOIN DISTMODHISTORY DMH ON M.OID = DMH.MODOID     
+               INNER JOIN ENGCTGVIEW CAR on M.caroid = CAR.oid  
+               INNER JOIN MODFILES mf on m.oid = mf.modoid
+        WHERE  1 = 1      	
+		AND    DMH.DISTOID = #distoid#
+	</select>
+	
+	<select id="DrawMngDAO.selectDistDrawListCnt" resultClass="java.lang.Integer" parameterClass="java.lang.String">
+		SELECT count(*)  
+ 		FROM  MOD M
+               INNER JOIN drawrel dr on M.oid = dr.modoid
+               INNER JOIN VERPRT vp on vp.oid = dr.reloid
+               INNER JOIN PRT p on vp.prtoid = p.oid
+               LEFT JOIN CCN PC ON P.PRTCTGOID = PC.OID   
+               LEFT JOIN CCN PT ON P.PRTTYPOID = PT.OID  
+               INNER JOIN CCN MT ON M.MODTYPEOID = MT.OID       
+               INNER JOIN CCN MS ON M.STAOID = MS.OID        
+               INNER JOIN HUM H ON  M.REGHUMID = H.ID           
+               INNER JOIN DISTMODHISTORY DMH ON M.OID = DMH.MODOID     
+               INNER JOIN ENGCTGVIEW CAR on M.caroid = CAR.oid  
+               INNER JOIN MODFILES mf on m.oid = mf.modoid
+        WHERE  1 = 1  	
+		AND    DMH.DISTOID = #distoid#	
+	</select>	
+
+	<select id="DrawMngDAO.selectSearchTeamList" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT T.NAME AS  TEAMNAME, T.OID
+		FROM   HUM H, TEAM T, DISTTEAMREL DT   
+		WHERE  DT.HUMID = H.ID   
+		AND    DT.TEAMOID = T.OID   
+		<isNotEmpty property="teamname">  
+			AND    T.NAME LIKE #teamname#
+		</isNotEmpty>		
+		group by T.NAME, T.OID	
+	</select>
+
+	<select id="DrawMngDAO.selectSearchTeamListCnt" parameterClass="java.util.Map" resultClass="java.lang.Integer">
+	select count(*)
+	from (
+		SELECT Count(*)
+		FROM   HUM H, TEAM T, DISTTEAMREL DT   
+		WHERE  DT.HUMID = H.ID   
+		AND    DT.TEAMOID = T.OID   
+		<isNotEmpty property="teamname">  
+			AND    T.NAME LIKE #teamname#
+		</isNotEmpty>		
+		group by T.NAME, T.OID	
+	) a
+	</select>
+
+	<!-- 전체협력업체 목록 -->
+	<select id="DrawMngDAO.selectDistcomhisryList" parameterClass="java.util.Map" resultClass="egovMap">
+		select '' active, a.*, ROWNUM as no
+		from (
+				select a.*
+				from (
+					 select 
+						distcom.oid, distcom.name, distcom.teamcomoid, distcom.tel, distcom.email, distcom.labor, 
+						distcom.laborid, distcom.companycode, teamcom.name teamcomname,'' receiptflag, '' receiptdate
+					from 	distcom, teamcom   
+					where 	distcom.teamcomoid = teamcom.oid
+				) a
+				LEFT OUTER JOIN distcomhistory 
+				ON a.oid = distcomhistory.distcomoid and distcomhistory.distoid = #distoid#
+		) a 
+		where 1 = 1 
+		<isNotEmpty property="id">
+		and laborid = #id#
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and labor = #name#
+		</isNotEmpty>		
+		<isNotEmpty property="teamname">
+		and name = #teamname#
+		</isNotEmpty>
+		ORDER BY $orderColumn$ $dir$		
+	</select>
+	
+	<!-- 배포된 도면배포정보의 협력업체목록 -->
+	<select id="DrawMngDAO.selectComDistComp" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT DC.OID, DC.NAME, DC.TEL, DC.EMAIL, DC.TEAMCOMOID,  
+		        TC.NAME TEAMCOMNAME, DC.LABOR, DC.LABORID, DC.PWD, DC.COMPANYCODE,  
+		        DC.REGDATE, DC.ACCESSTIME, DCH.RECEIPTDATE,  CASE DCH.RECEIPTFLAG WHEN 'T' THEN '수령' ELSE '미수령' END AS RECEIPTFLAG   
+		 FROM   DISTCOM DC, TEAMCOM TC, DISTCOMHISTORY DCH, DIST D  
+		 WHERE  DC.TEAMCOMOID = TC.OID   
+		 AND    DC.OID = DCH.DISTCOMOID   
+		 AND    DCH.DISTOID = D.OID   
+		<isNotEmpty property="distoid">
+		AND    D.OID = #distoid#
+		</isNotEmpty>
+		ORDER BY DCH.RECEIPTDATE
+	</select>
+
+	<select id="DrawMngDAO.selectDistcomhisryListCnt" parameterClass="java.util.Map" resultClass="java.lang.Integer">
+		select count(*)
+		from (
+				select a.*
+				from (
+					 select 
+						distcom.oid, distcom.name, distcom.teamcomoid, distcom.tel, distcom.email, distcom.labor, 
+						distcom.laborid, distcom.companycode, teamcom.name teamcomname, ROW_NUMBER() OVER (ORDER BY distcom.oid) as no
+					from 	distcom, teamcom   
+					where 	distcom.teamcomoid = teamcom.oid
+				) a
+				LEFT OUTER JOIN distcomhistory 
+				ON a.oid = distcomhistory.distcomoid and distcomhistory.distoid = #distoid#
+		) a 
+		where 1 = 1
+		<isNotEmpty property="id">
+		and laborid = #id#
+		</isNotEmpty>
+		<isNotEmpty property="name">
+		and labor = #name#
+		</isNotEmpty>		
+		<isNotEmpty property="teamname">
+		and name = #teamname#
+		</isNotEmpty>
+	</select>
+
+	<insert id="DrawMngDAO.insertDistcomhistory" parameterClass="java.util.Map" >
+		INSERT INTO DISTCOMHISTORY	
+		( DISTOID, DISTCOMOID )	
+		VALUES ( #distoid#, #distcomoid# )	
+	</insert>
+	
+	<update id="DrawMngDAO.updateDistcom" parameterClass="java.util.Map">
+		UPDATE DIST 	
+		SET    DISTFLAG = 'T', DISTHUMID = #disthumid# , DISTDATE = TO_CHAR(now(),'YYYY-MM-DD')
+		WHERE  OID = #oid#
+	</update>
+	
+	<insert id="DrawMngDAO.insertModhistory" parameterClass="java.util.Map">
+		INSERT INTO distmodhistory (distoid, modoid)
+    	VALUES (#distoid#, #modoid#);
+	</insert>
+	
+	<insert id="DrawMngDAO.insertDrawFile" parameterClass="java.util.Map">
+		INSERT INTO 
+			distfile
+		(
+            oid, 
+            distoid, 
+            regdate, 
+            humid, 
+            rfilename, 
+            filename
+        )
+    	VALUES 
+    	(
+	    	#oid#, 
+	    	#distoid#, 
+	    	to_date(to_char(now(), 'YYYY-MM-DD'), 'YYYY-MM-DD'), 
+	    	#humid#, 
+	    	#rfilename#, 
+	    	#filename#
+    	);
+	</insert>
+	
+	<delete id="DrawMngDAO.deleteDistFile" parameterClass="java.util.Map">
+		delete from distfile where oid = #distfileoid# and distoid = #distoid#
+	</delete>
+	
+	<select id="DrawMngDAO.selectCcnUnitList" resultClass="egovMap" parameterClass="java.lang.String">
+		select oid, name
+		from ccn
+		where parentoid = #parentoid#		
+	</select>
+	
+	<select id="DrawMngDAO.selectTeamcomList" resultClass="egovMap">
+		select *
+		from teamcom
+		order by oid	
+	</select>
+	
+	<update id="DrawMngDAO.updateDistHistory" parameterClass="java.util.Map">
+		UPDATE dist
+		   SET title=#title#, content=#content#, disthumid=#disthumid#, 
+		       teamcomoid=#teamcomoid#, modtypeoid=#modtype#, dszoid=#dsz#, caroid=#engine#, eono=#eono#, verprtoid=#verprtoid#, 
+		       pno=#pno#, partname=#partname#
+		 WHERE oid = #distoid#
+	</update>
+	
+	<delete id="DrawMngDAO.deleteDISTMODHistory" parameterClass="java.util.Map">
+		DELETE FROM DISTMODHISTORY WHERE DISTOID = #distoid#
+		<isNotEmpty property="modoid">
+		AND MODOID = #modoid#
+		</isNotEmpty>
+	</delete>
+	
+	<delete id="DrawMngDAO.deleteDISTTEAMHistory" parameterClass="java.util.Map">
+		DELETE FROM DISTTEAMHISTORY WHERE DISTOID = #distoid#
+	</delete>	
+	
+	<delete id="DrawMngDAO.deleteDISTFILEHistory" parameterClass="java.util.Map">
+		DELETE FROM DISTFILE WHERE distoid = #distoid#
+	</delete>
+	
+	<delete id="DrawMngDAO.deleteDISTHistory" parameterClass="java.util.Map">
+		DELETE FROM DIST WHERE oid = #distoid#
+	</delete>	
+	
+	<select id="DrawMngDAO.selectDistFileDownload" parameterClass="java.lang.String" resultClass="java.util.Map">
+		select *
+		from distfile
+		where oid = #oid#
+	</select>
+	
+	<update id="DrawMngDAO.updateDistDraw" parameterClass="java.lang.String">
+		update dist set distflag = 'T', distdate = to_char(now(), 'YYYY-MM-DD') where oid = #distoid# 
+	</update>
+	
+	<select id="DrawMngDAO.selectDisthumid" parameterClass="java.util.Map" resultClass="java.lang.Integer">
+		select 	count(*) cnt
+		from 	dist
+		where 	oid = #distoid#
+		and		disthumid = #humid#
+	</select>
+	
+	<!-- 배포팀 사용자, 메일정보 -->
+	<select id="DrawMngDAO.selectDistTeamEmailInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		select  hum.name, hum.email, hum.name humname, team.name teamname 
+		from
+		<isNotEmpty property="distoid"> 	
+			DISTTEAMHISTORY, 
+		</isNotEmpty>
+			distteamrel, hum, team   
+		where  	1=1
+		<isNotEmpty property="distoid"> 
+		and DISTTEAMHISTORY.dtroid = distteamrel.oid
+		</isNotEmpty> 
+		and 	distteamrel.humid =  hum.id
+		and		distteamrel.teamoid = team.oid
+		<isNotEmpty property="distoid">
+		and 	DISTTEAMHISTORY.distoid = #distoid#	
+		</isNotEmpty>
+		<isNotEmpty property="distteamoid">
+		and     distteamrel.oid = #distteamoid#
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectDistFileList" parameterClass="java.util.HashMap" resultClass="egovMap">
+		select filename, rfilename
+		from distfile
+		where oid = #distfileoid#
+	</select>
+	
+	<!-- 배포도면 협력업체 정보  -->
+	<select id="DrawMngDAO.selectDistDrawComInfo" parameterClass="java.util.HashMap" resultClass="egovMap">
+		select dc.oid
+		from DISTMODHISTORY DMH, MOD M, DIST D, DISTCOMHISTORY DCH, DISTCOM DC
+		where dmh.modoid = m.oid
+		and dmh.distoid = d.oid
+		and d.oid = dch.distoid
+		and dch.distcomoid = dc.oid
+		<isNotEmpty property="distoid">
+		and d.oid = #distoid#
+		</isNotEmpty>
+		<isNotEmpty property="modoid">
+		and m.oid = #modoid#
+		</isNotEmpty>
+	</select>
+	
+	<!-- 배포도면 배포팀 정보  -->
+	<select id="DrawMngDAO.selectDistDrawTeamInfo" parameterClass="java.util.HashMap" resultClass="egovMap">
+		select dt.oid
+		from DISTMODHISTORY DMH, MOD M, DIST D, DISTTEAMHISTORY DTH, distteamrel DT, hum h
+		where dmh.modoid = m.oid
+		and dmh.distoid = d.oid
+		and d.oid = dth.distoid
+		and dth.dtroid = dt.oid
+		and dt.humid =  h.id
+		<isNotEmpty property="distoid">
+		and d.oid = #distoid#
+		</isNotEmpty>
+		<isNotEmpty property="modoid">
+		and m.oid = #modoid#
+		</isNotEmpty>
+	</select>
+	
+	<!-- 배포도면수령지연업체 정보(도면배포일로 부터 3일이상 지난업체)  -->
+	<select id="DrawMngDAO.selectDelayDistComInfo" parameterClass="java.util.HashMap" resultClass="egovMap">
+		select d.*, dch.*, dc.oid, dc.name, dc.labor, dc.email, date_part('day', (now() - d.distdate::date )) as day
+		from DIST d, distmodhistory dmh, mod, distcomhistory dch, distcom dc
+		where d.oid = dmh.distoid
+		and dmh.modoid = mod.oid	
+		and dch.distoid = d.oid	
+		and dc.oid = dch.distcomoid
+		and dch.receiptflag = 'F'
+		and d.distflag = 'T'
+		and dch.receiptdate is null
+		and date_part('day', (now() - d.distdate::date ))  >= 3
+		<isNotEmpty property="distoid">
+		and d.oid = #distoid#
+		</isNotEmpty>
+		<isNotEmpty property="distcomoid">
+		and dc.oid = #distcomoid#
+		</isNotEmpty>
+	</select>
+	
+	<update id="DrawMngDAO.updateCADLoginCheck" >
+		UPDATE hum
+		   SET cadpwd=#cadpwd# 
+		 WHERE id = #id# AND pwd = #pwd#
+	</update>
+		
+	<!-- 도면조회 이력 등록 -->
+	<insert id="DrawMngDAO.insertModUseHistory" parameterClass="java.util.Map" >
+		insert into modhistory (refoid, reftype, userid, usedate, usetime, usetype, des)
+		values (#refoid#, #reftype#, #userid#, TO_CHAR(current_timestamp,'YYYY-MM-DD'), TO_CHAR(current_timestamp,'HH24:MI:SS'), #usetype#, #des#)
+	</insert>
+	
+			
+	<!-- 배포도면 수령지연팀 정보(도면배포일로 부터 3일이상 배포팀)  -->
+	<select id="DrawMngDAO.selectDelayDistTeamSendMail" parameterClass="java.util.HashMap" resultClass="egovMap">
+		SELECT * 
+		FROM 
+		(
+			  SELECT  d.oid distoid, m.oid modoid, h3.id humid, h3.email, T.NAME TEAMNAME, H3.NAME HUMNAME, M.DNO,  
+				CASE WHEN D.APPFLAG IS NULL THEN SUBSTR(D.REGDATE,0,11) ELSE CAST(APP.APRDATE AS TEXT) END AS REGDATE,    
+				CAST((            
+					CASE WHEN MH.USEDATE IS NULL OR MH.USEDATE = '' THEN  ( CASE WHEN D.APPFLAG IS NULL THEN date_part('day', (now() - D.REGDATE::date ))     
+												ELSE date_part('day', (now() - APP.APRDATE::date ))  END ) 
+					 ELSE 0 END ) AS integer) DELAYDATE   
+			 FROM   DIST D    
+			 INNER JOIN HUM H1    
+			 ON D.HUMID = H1.ID  
+			 LEFT JOIN DISTMODHISTORY DMH  
+			 ON D.OID = DMH.DISTOID    
+			 LEFT JOIN MOD M    
+			 ON DMH.MODOID = M.OID  
+			 LEFT JOIN MODAPPROVE APP    
+			 ON APP.OID = M.MODAPPOID  
+			 LEFT JOIN ENGCTGVIEW ENGINE    
+			 ON D.CAROID = ENGINE.OID    
+			 LEFT JOIN HUM H2    
+			 ON D.DISTHUMID = H2.ID    
+			 INNER JOIN DISTTEAMHISTORY DTH     
+			 ON D.OID = DTH.DISTOID       
+			 INNER JOIN distteamrel DT    
+			 ON DTH.DTROID = DT.OID      
+			 INNER JOIN TEAM T     
+			 ON DT.TEAMOID = T.OID       
+			 INNER JOIN HUM H3   
+			 ON DT.HUMID = H3.ID       
+			 LEFT JOIN (select refoid, userid, min(usedate) usedate from MODHISTORY group by refoid, userid) MH          
+			 ON (M.OID = MH.REFOID AND H3.ID = MH.USERID)      
+			 WHERE 1=1   
+			 AND (D.APPFLAG = 'Y' OR D.APPFLAG IS NULL) 
+			 AND  USEDATE IS NULL 
+		
+		  ) tmp
+		 where 1=1
+		<isNotEmpty property="distoid">
+		AND distoid = #distoid#
+		</isNotEmpty>
+		<isNotEmpty property="modoid">
+		AND modoid = #modoid#
+		</isNotEmpty>
+		<isNotEmpty property="humid">
+		AND humid = #humid#
+		</isNotEmpty>
+		<!-- AND delaydate >= 3 -->		
+	</select>
+	
+	<!-- 도면배포 진행현황-->
+ 	<select id="DrawMngDAO.selectDistStatus" resultClass="egovMap">
+		 SELECT  
+		 	M.DNO, H2.NAME AS HUMNAME, T.NAME DISTTEAMNM, H3.NAME DISTTEAMHUMNM, SUBSTR(D.REGDATE,0,11) AS REGDATE, 
+		 	CASE WHEN MH.USEDATE IS NULL THEN '미접수' ELSE '접수' END AS ACCEPTFLAG, 
+		 	CASE WHEN MH.USEDATE IS NULL OR MH.USEDATE = '' THEN '-' ELSE MH.USEDATE END ACCEPTDATE,            
+		 	CASE WHEN MH.USEDATE IS NULL OR MH.USEDATE = '' THEN date_part('day', (now() - D.REGDATE::date )) ELSE 0 END DELAYDATE,         
+		 	'' AS NOTIFY, D.OID DISTOID, D.EONO, D.VERPRTOID, D.DISTDATE, D.PCTOID, D.HUMID, D.DISTHUMID, H3.ID DISTTEAMHUMID, M.OID MODOID, DT.TEAMOID 
+		 FROM   DIST D    
+		 INNER JOIN DISTMODHISTORY DMH ON D.OID = DMH.DISTOID    
+		 INNER JOIN MOD M ON DMH.MODOID = M.OID  
+		 LEFT JOIN HUM H2 ON D.HUMID = H2.ID    
+		 INNER JOIN DISTTEAMHISTORY DTH ON D.OID = DTH.DISTOID       
+		 INNER JOIN DISTTEAMREL DT ON DTH.DTROID = DT.OID       
+		 INNER JOIN TEAM T ON DT.TEAMOID = T.OID       
+		 INNER JOIN HUM H3 ON DT.HUMID = H3.ID       
+		 LEFT JOIN MODHISTORY MH ON (M.OID = MH.REFOID AND H3.ID = MH.USERID )   
+		 WHERE 1=1   
+		 ORDER BY D.REGDATE DESC, D.OID DESC
+	</select>
+	
+	<!-- 도면배포정보 결재완료 플래그 -->
+	<update id="DrawMngDAO.updateDistAppFlag" parameterClass="java.util.Map">
+		<![CDATA[
+			UPDATE DIST SET appflag = 'Y' WHERE OID = (SELECT distoid FROM MOD WHERE oid = #modoid#) 
+		]]>
+	</update>
+	
+	<!-- 도면정보 도면배포OID 연계 -->
+	<update id="DrawMngDAO.updateDrawDistOid" parameterClass="java.util.Map" >
+		<![CDATA[ 
+		UPDATE mod
+		SET distoid = #distoid#
+		WHERE oid = #modoid#
+		]]>
+	</update>
+	
+	<!-- 도면 결재완료시 도면배포 배포팀에 메일발송을 위한 사용자 메일정보 -->
+	<select id="DrawMngDAO.selectAppDistTeamMail" parameterClass="java.util.HashMap" resultClass="egovMap">
+	SELECT d.oid, dt.oid, h.name, h.email, t.name teamname, h.name humname
+		FROM DIST D, DISTTEAMHISTORY dth, distteamrel dt, hum h, team t, mod m, modhistory mh
+		WHERE d.oid = dth.distoid
+		AND dth.dtroid = dt.oid 
+		AND dt.teamoid = t.oid
+		AND dt.humid =  h.id
+		AND m.oid = mh.refoid
+		AND (mh.usedate IS NOT NULL AND mh.usedate != '')
+		AND d.oid in (select distoid from mod where oid = #modoid#)
+		GROUP BY d.oid, dt.oid, h.email, h.name, t.name
+	</select>
+	
+	<!--개정정보로 값 존재하는지 체크 -->
+	<select id="DrawMngDAO.retrieveCheckExistRev" parameterClass="java.util.Map" resultClass="java.lang.Integer" >
+		SELECT COUNT(OID) cnt	
+		FROM   MOD	
+		WHERE  PVSOID = #pvsoid#	
+		AND    VERPRTOID = #verprtoid#	
+	</select>
+	
+	<!-- 체크아웃/인 여부 확인 -->
+	<select id="DrawMngDAO.selectCheckOutFlag" parameterClass="java.util.Map" resultClass="java.lang.String">
+		SELECT case when checkdate is null then 'T' else 'F' end as CHECKFLAG
+		FROM   MOD	
+		WHERE  OID = #modoid#	
+	</select>
+				
+	<!-- 산출물 결재 정보에 삭제 -->
+	<delete id="DrawMngDAO.deletePrjApprove" parameterClass="java.util.Map">
+		<![CDATA[
+			DELETE
+			FROM   PRJAPPROVE
+			WHERE  APPSTA = 'CCN00110'
+			AND    CHANGETYPE = 'DO'
+			AND    WORKOID = #reloid#
+		]]>
+	</delete>
+	
+	<!-- 도면배포 접수 파일다운로드 이력조회 -->
+	<select id="DrawMngDAO.selecDistDownHist" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT p.pno, p.caroid, h.name humname, t.name teamname, mh.usedate, mh.usetime, mh.des
+		FROM 
+			dist d,
+	        distmodhistory dmh,
+	        teamhum th,
+	        team t,
+	        hum h,
+	        mod m,
+	        prt p,
+	        verprt vp,
+	        modhistory mh
+		WHERE d.oid = dmh.distoid
+		AND d.oid = dmh.distoid
+        AND dmh.modoid = m.oid
+        AND m.oid = mh.refoid
+        AND p.oid = vp.prtoid
+        AND m.verprtoid = vp.oid
+		AND h.id = th.humid
+		AND t.oid = th.teamoid
+        AND mh.userid = h.id
+		<isNotEmpty property="distoid">
+		AND d.oid = #distoid#
+		</isNotEmpty>
+		<isNotEmpty property="modoid">
+		AND m.oid = #modoid#
+		</isNotEmpty>
+		<!-- 
+		<isNotEmpty property="humid">
+		AND h.id = #humid#
+		</isNotEmpty>
+		 -->
+		GROUP BY p.pno, p.caroid, h.name, t.name, mh.usedate, mh.usetime, mh.des
+		ORDER BY p.pno, p.caroid, h.name, t.name, mh.usedate, mh.usetime, mh.des
+	</select>
+	
+	<!-- EBOM정보 -->
+	<select id="DrawMngDAO.selectEbomTreeList" parameterClass="java.util.Map" resultClass="egovMap">
+		<!-- 
+		WITH RECURSIVE  
+		search_ebominfo(modoid, dno, eono, mversion, parentoid, LEVEL, PATH )  AS 
+		( 
+		SELECT m.oid as modoid, m.dno, m.eono, m.mversion, cast('' as varchar) parentoid , 1,  array[cast(m.oid as varchar)]     
+		FROM mod m
+		where m.oid = #modoid#
+		UNION ALL  
+		SELECT m.oid as modoid,  m.dno, m.eono, m.mversion, eb.parentoid,  LEVEL + 1, PATH || cast(m.oid as varchar) 
+		FROM mod m
+		inner join ebom eb
+		on m.oid = eb.modoid
+		inner join search_ebominfo se
+		on eb.parentoid = se.modoid
+		) 
+		select modoid, dno, eono, mversion, parentoid, LEVEL, PATH
+		from search_ebominfo ORDER BY PATH 
+		-->  
+		select m.oid as modoid, eb.parentoid, m.prttypeoid, prttyp.name prttypename, m.dnam, m.dno, m.moduletype, m.modtypeoid, m.eono, m.mversion, m.modsizeoid, m.devstep, m.staoid, sta.name staname, m.reghumid, m.regdate, m.dscoid, m.caroid, car.name carname, case when m.checkdate is null then '체크인' else '체크아웃' end checkdate, eb.parentoid, eb.seq, LEVEL
+        FROM mod m
+        left join ebom eb
+        on m.oid = eb.modoid
+        left join ccn prttyp
+        on m.prttypeoid = prttyp.oid
+        left join engctgview car
+        on m.caroid = car.oid
+        left join ccn sta
+        on m.staoid = sta.oid
+        start with m.oid = #modoid#
+        connect by prior m.oid = eb.parentoid
+        order siblings by eb.parentoid, eb.seq  
+	</select>
+	
+	<select id="DrawMngDAO.selectRecEbomTreeList" parameterClass="java.util.Map" resultClass="egovMap">
+	 	select m.oid as modoid, eb.parentoid, m.prttypeoid, prttyp.name prttypename, m.dnam, m.dno, m.moduletype, m.modtypeoid, m.eono, m.mversion, m.modsizeoid, m.devstep, m.staoid, sta.name staname, m.reghumid, m.regdate, m.dscoid, m.caroid, car.name carname, case when m.checkdate is null then '체크인' else '체크아웃' end checkdate, eb.parentoid, eb.seq, LEVEL
+       ,case when level > 1 and eb.modoid != eb.lastmodoid then 'T' else 'F' end isverchg
+        FROM mod m
+        left join ebom eb
+        on m.oid = eb.lastmodoid
+        left join ccn prttyp
+        on m.prttypeoid = prttyp.oid
+        left join engctgview car
+        on m.caroid = car.oid
+        left join ccn sta
+        on m.staoid = sta.oid
+        start with m.oid = #modoid#
+        connect by prior m.oid = eb.parentoid
+        order siblings by eb.parentoid, eb.seq  
+	</select>
+	
+	<select id="DrawMngDAO.selectEbomNotTopPartTreeList" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.oid as modoid, eb.parentoid, eb.rootoid, m.prttypeoid, m.dno, m.moduletype, m.modtypeoid, m.eono, m.mversion, m.modsizeoid, m.devstep, m.staoid, m.reghumid, m. regdate, m.dscoid, m.caroid, case when m.checkdate is null then '체크인' else '체크아웃' end checkdate, eb.parentoid, eb.seq, LEVEL
+        FROM mod m
+        left join ebom eb
+        on m.oid = eb.modoid
+        start with m.oid = #modoid#
+        connect by prior m.oid = eb.parentoid
+        order siblings by eb.parentoid, eb.seq  
+	</select>
+	
+	<select id="DrawMngDAO.selectRootOidList" parameterClass="java.util.Map" resultClass="egovMap">
+		select modoid, parentoid from ebom where modoid = #modoid#
+	</select>
+
+	<!-- 연결된 도면 BOM 정보 -->
+	<select id="DrawMngDAO.selectRelEbomInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		select modoid, parentoid, seq, humid, regdate from ebom where parentoid = #modoid#
+	</select>
+
+	<!-- EBOM 파트 등록 -->
+	<insert id="DrawMngDAO.InsertEbomInfo" parameterClass="java.util.Map" >
+		<isEqual property="bomProcType" compareValue="bomHighPrtAdd">
+			INSERT INTO ebom(modoid, parentoid, seq, humid, regdate)
+		    VALUES (#ebomoid#, #modoid#, case when (select max(seq)+1 from ebom where parentoid = #modoid# group by parentoid) is null then 1 else (select max(seq)+1 from ebom where parentoid = #modoid# group by parentoid)  end , #humid#, current_date)
+		</isEqual>  
+		<isEqual property="bomProcType" compareValue="bomPrtAdd">         
+			INSERT INTO ebom(modoid, parentoid, seq, humid, regdate)
+			VALUES (#modoid#, #ebomoid#, case when (select max(seq)+1 from ebom where parentoid = #ebomoid# group by parentoid) is null then 1 else (select max(seq)+1 from ebom where parentoid = #ebomoid#  group by  parentoid)  end , #humid#,current_date)
+		</isEqual>
+	</insert>	
+	
+	<!-- EBOM 파트 수정 -->
+	<update id="DrawMngDAO.UpdateEbomInfo" parameterClass="java.util.Map" >
+		<isEqual property="bomProcType" compareValue="bomHighPrtAdd">
+			UPDATE ebom set modoid=#modoid#, parentoid = #parentoid#, seq = cast(#seq# as integer) where modoid = #ebomoid# and parentoid = #parentoid#
+		</isEqual>
+		<isEqual property="bomProcType" compareValue="bomPrtMod">
+			UPDATE ebom set modoid=#modoid#, parentoid = #parentoid# where modoid = #ebomoid# and parentoid = #parentoid# and seq = cast(#seq# as integer) 
+		</isEqual>
+	</update>
+	
+	<!-- 프로시저 호출(lastmodoid update) -->
+	<parameterMap id="updateEbomParameters" class="map">
+	 	 <parameter property="p_modoid" javaType="java.lang.String" jdbcType="VARCHAR" mode="IN"/>
+    </parameterMap>
+    
+    <procedure id="DrawMngDAO.call_UpdateEbom" parameterMap="updateEbomParameters">
+         {call update_ebom(?)}
+    </procedure>
+    
+    <!-- 프로시저 호출(bom sequence update) -->
+	<parameterMap id="updateEbomSeqParameters" class="map">
+	 	 <parameter property="p_parentoid" javaType="java.lang.String" jdbcType="VARCHAR" mode="IN"/>
+    </parameterMap>
+    
+    <procedure id="DrawMngDAO.call_UpdateEbomSeq" parameterMap="updateEbomSeqParameters">
+         {call update_ebom_seq(?)}
+    </procedure>
+    
+    
+	<!-- EBOM 파트 삭제 -->
+	<delete id="DrawMngDAO.deleteEbomInfo" parameterClass="java.util.Map" >
+		delete from ebom where modoid = #modoid# and parentoid = #parentoid#
+		<isNotEmpty property="seq">
+		and seq = cast(#seq# as integer)
+		</isNotEmpty>
+	</delete>	
+	
+	<!-- 도면과 연결된 도면 리스트 정보 -->
+	<select id="DrawMngDAO.retrieveDrawRelDrawList" parameterClass="java.util.Map" resultClass="egovMap">
+			select m.oid as modoid, prttype.name as prttypename ,m.dno, m.mversion, m.eono, to_char(m.regdate, 'yyyy-mm-dd') regdate
+			from mod m
+			left join ebom e1
+			on m.oid = e1.parentoid
+			left join ebom e2
+			on m.oid = e2.modoid
+			left join ccn prttype
+			on m.prttypeoid = prttype.oid  
+			where e1.modoid = #modoid#
+			group by m.oid, prttype.name, m.dno,  m.mversion, m.eono, m.regdate
+	</select>
+	
+	<update id="DrawMngDAO.updateVerprtRelMod" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			insert into drawrel values(#modoid#, #verprtoid#, 'F')
+		]]>
+	</update>	
+	
+	<delete id="DrawMngDAO.deleteVerprtRelMod" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			delete from drawrel where modoid=#modoid# and reloid = #verprtoid#
+		]]>
+	</delete>	
+	
+
+	<select id="DrawMngDAO.retrieveEbomDrawVerChkList" parameterClass="java.util.Map" resultClass="egovMap">
+			select m.oid as modoid, prttype.name as prttypename ,m.dno, m.mversion
+	        FROM mod m
+	        left join ccn prttype
+			on m.prttypeoid = prttype.oid  
+			where m.dno = #dno#
+	</select>
+	
+	<select id="DrawMngDAO.selectEbomInfo" parameterClass="java.util.Map" resultClass="egovMap">
+			select modoid, parentoid, seq from ebom where parentoid = #parentoid# order by seq
+	</select>
+	
+	<update id="DrawMngDAO.updateEbomSeq" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			update ebom set seq = $seq$ where modoid=#modoid# and parentoid=#parentoid#
+		]]>
+	</update>	
+	  
+	<select id="DrawMngDAO.selectSumEbomTreeList" parameterClass="java.util.Map" resultClass="egovMap">
+        select r.modoid, r.dno, r.mversion, r.lev, r.eono
+        from(
+        select m.oid as modoid, m.prttypeoid, m.dno, m.moduletype, m.modtypeoid, m.eono, m.mversion, m.modsizeoid, m.devstep, m.staoid, m.reghumid, m. regdate, m.checkdate, m.dscoid, m.caroid, m.changedate, eb.parentoid, eb.seq, LEVEL lev, rownum cnt
+        FROM mod m
+        left join ebom eb
+        on m.oid = eb.modoid
+        start with m.oid in (#firstmodoid#, #secondmodoid#)
+        connect by prior m.oid = eb.parentoid
+        order siblings by eb.parentoid, eb.seq  
+        ) r group by  r.dno, r.mversion,  r.modoid, r.eono,  r.lev having r.lev != '1'
+	</select>
+	
+	<update id="DrawMngDAO.updateCheckInCADBomUpdate" parameterClass="java.util.Map" >
+		<![CDATA[ 
+			update ebom set modoid = #newmodoid# where modoid=#modoid# and parentoid=#parentoid#
+		]]>
+	</update>	
+	
+	<select id="DrawMngDAO.selectDistReceiveTeamList" resultClass="egovMap" parameterClass="java.util.Map">
+		select 	erpteam.name teamname
+		from 	receiveteamrel, erpteam 
+		where 	receiveteamrel.teamoid = erpteam.oid
+		and		receiveteamrel.oid = #distoid# 		
+	</select>
+	
+	<select id="DrawMngDAO.retrieveDocInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT '' active, verdoc.oid AS verdocoid, doc.oid AS docoid, verdoc.version,docrel.reloid,
+		       (select name from ccn where oid = verdoc.moduletype) AS modulename,
+		       doc.dno, doc.title, docctg.name AS docctg,
+		       (select name from ccn where oid = verdoc.staoid ) stanm,
+		       verdoc.eono, hum.name AS writer, verdoc.regdate, VERDOCFILE.rfilename, mfilename 
+		FROM docrel, verdoc, doc, ccn docctg, hum, verdocfile,
+			(
+			select 	ec.oid ecoid
+			from 	docrel, ec, dist, distmodhistory
+			where 	docrel.reloid = ec.oid 
+			and		ec.oid = distmodhistory.modoid
+			and		dist.oid = distmodhistory.distoid
+			and		dist.oid = #distoid#
+			) a,
+		       (SELECT docoid, MAX (version) AS version FROM verdoc GROUP BY docoid) temp
+		WHERE verdoc.oid = docrel.verdocoid
+		AND verdoc.docoid = doc.oid AND docctg.oid = doc.docctgoid 
+		AND hum.id = verdoc.humid AND doc.oid = temp.docoid 
+		AND verdoc.version = temp.version AND docrel.reloid = a.ecoid
+		AND verdoc.oid = VERDOCFILE.verdocoid	
+	</select>
+	
+	<insert id="DrawMngDAO.insertVerdochistory" parameterClass="java.util.Map">
+		INSERT INTO public.distdochistory(
+            distoid, verdocoid)
+    	VALUES (#distoid#, #verdocoid#);
+		
+	</insert>
+
+	<insert id="DrawMngDAO.insertEBOMTree" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    		INTO EBOM (MODOID, PARENTOID, HUMID, REGDATE, ROOTOID)
+				VALUES ( #[].cur_oid#, #[].par_oid#, #[].humid#, current_date, #[].rootoid# )
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<insert id="DrawMngDAO.insertThumbnail" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    		INTO MODFILES(OID, VERSION, MODOID, FILEPATH, FILENAME, RFILENAME, FILESIZE, INDEXNO, REGDATE, MASTERFLAG, HUMID)
+	    		VALUES ( #[].oid#, '0', #[].modoid#, #[].path#, #[].hashfile#, #[].realfile#, #[].filesize#, '2', current_date, 'F', #[].humid# )
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<insert id="DrawMngDAO.insertAddEBOMTree" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    		INTO EBOM (MODOID, PARENTOID, HUMID, REGDATE, ROOTOID)
+				VALUES ( #[].cur_oid#, #[].par_oid#, #[].humid#, current_date, #[].rootoid# )
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<select id="DrawMngDAO.selectDistDocList" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT 	'' active, doc.oid docoid, verdoc.oid verdocoid, doc.title, doc.dno
+		FROM 	distdochistory, dist, verdoc, doc 
+		WHERE 	distdochistory.distoid = dist.oid
+		AND		distdochistory.verdocoid = verdoc.oid
+		AND		verdoc.docoid = doc.oid	
+		AND		DIST.oid = #distoid#
+	</select>
+	
+	<!-- 잠금해제 -->
+	<update id="DrawMngDAO.updateDrawCheckUnlock" parameterClass="java.util.Map" >
+		UPDATE MOD
+		SET CHECKDATE = null 
+		WHERE  OID = #modoid#
+	</update>	
+	
+	<update id="DrawMngDAO.updateDrawFileCheckUnlock" parameterClass="java.util.Map" >
+		UPDATE MODFILES	
+		SET CHECKDATE = null, CHECKHUMID = null
+		WHERE  OID = #oid#
+	</update>	
+	
+	<!-- 잠금 -->
+	<update id="DrawMngDAO.updateDrawCheckLock" parameterClass="java.util.Map" >
+		UPDATE MOD M	
+		SET CHECKDATE = to_date(#checkdate#,'yyyy-mm-dd hh24:mi:ss'), CHANGEDATE = to_date(#checkdate#,'yyyy-mm-dd hh24:mi:ss')
+		WHERE  OID = #modoid#
+	</update>	
+	
+	
+	<insert id="DrawMngDAO.insertModFileHistory" parameterClass="java.util.Map">
+        insert into modfilehistory(oid, modoid, version, filename, rfilename, filesize, filepath, fileseq, masterflag, humid, regdate, changedate)
+        select oid, modoid, version, filename, rfilename, filesize, filepath, indexno fileseq, masterflag, humid, regdate, changedate from modfiles
+        where oid = #oid# and version = #version#
+	</insert> 
+	
+	<update id="DrawMngDAO.updateModFileCheckIn" parameterClass="java.util.Map" >
+		update modfiles set version = #newversion#, checkdate=null, checkhumid = null, filename = #filename#, rfilename = #rfilename#, filesize = $filesize$, changedate = current_timestamp
+		where oid = #oid# and version = #version#
+	</update>
+	
+	<update id="DrawMngDAO.updateDrawStatus" parameterClass="java.util.Map" >
+		update mod set staoid = #status#
+		where oid = #modoid#
+	</update>
+		
+	<select id="DrawMngDAO.selectModuleFileInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		select verdocoid oid , rfilename, mfilename, replace(regdate,'/') regdate from verdocfile where filepath is not null and mfilename = #filename# 
+	</select>
+	
+	<update id="DrawMngDAO.updateModuleFileInfo" parameterClass="java.util.Map" >
+		update verdocfile set filepath = #filepath#
+		where filepath is not null and mfilename = #filename# 
+	</update>
+	
+	<select id="DrawMngDAO.selectBomRootList" parameterClass="java.util.Map" resultClass="egovMap">
+		select 'prt' gbn, oid from verprt where prtoid in(select oid from prt where  prttypoid = 'CCN11671')
+		union(
+		select 'mod' gbn, oid from mod where  prttypeoid = 'CCN11671'
+		)
+	</select>
+	
+	<update id="DrawMngDAO.updateBomTreeRootoid" parameterClass="java.util.Map" >
+		<isEqual property="gbn" compareValue="prt">
+			update mbom set rootoid = #rootoid# where verprtoid = #verprtoid# and parentoid = #parentoid#
+		</isEqual>
+		<isEqual property="gbn" compareValue="mod">
+			update ebom set rootoid = #rootoid# where modoid = #modoid# and parentoid = #parentoid#
+		</isEqual>
+	</update>
+	
+	<select id="DrawMngDAO.selectCadigDrawInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT MF.OID, MF.VERSION, MF.FILEPATH, MF.FILENAME, MF.RFILENAME, MF.FILESIZE, MF.INDEXNO, MF.MASTERFLAG
+		FROM MODFILES MF
+		WHERE 1=1
+		<isNotEmpty property="oid">
+		AND MF.OID = #oid#
+		</isNotEmpty>
+		<isNotEmpty property="modoid">
+		AND MF.MODOID = #modoid#
+		</isNotEmpty>
+		<isNotEmpty property="filename">
+		AND MF.FILENAME = #filename#
+		</isNotEmpty>
+		<isNotEmpty property="rfilename">
+		AND MF.RFILENAME = #rfilename#
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectSearchDrawThumb" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT mf.filepath, mf.FILENAME FROM MODFILES mf INNER JOIN MOD m ON mf.MODOID = m.OID
+        WHERE m.CAROID = #sel_Caroid# AND m.MVERSION = #sel_Version# AND m.DNO = #sel_Dno# AND mf.FILENAME LIKE '%.jpg'
+	</select>
+	
+	<select id="DrawMngDAO.selectSearchDraw" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT M.PRTTYPEOID, M.MVERSION, M.DNO, E.NAME, P.PNO, M.REGHUMID, M.REGDATE, E.OID, C.NAME AS NAME2, P.PVERSION
+        FROM VERPRT P INNER JOIN DRAWREL D ON D.RELOID = P.OID INNER JOIN MOD M ON D.MODOID = M.OID
+        INNER JOIN ENGCTGVIEW E ON M.CAROID = E.OID INNER JOIN CCN C ON C.OID = M.STAOID
+        WHERE 1=1
+        <isNotEmpty property="get_caroid">
+		AND M.CAROID = #get_caroid#
+		</isNotEmpty>
+		<isNotEmpty property="get_pno">
+		AND upper(P.PNO) like upper('%'||#get_pno#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="get_pver">
+		AND P.PVERSION = #get_pver#
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectSearchDraw2" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT M.PRTTYPEOID, M.MVERSION, M.DNO, E.NAME, P.PNO, M.REGHUMID, M.REGDATE, E.OID, C.NAME AS NAME2, P.PVERSION
+        FROM MOD M INNER JOIN ENGCTGVIEW E ON M.CAROID = E.OID INNER JOIN DRAWREL D ON D.MODOID = M.OID
+        INNER JOIN VERPRT P ON D.RELOID = P.OID INNER JOIN CCN C ON C.OID = M.STAOID
+        WHERE 1=1
+        <isNotEmpty property="get_caroid">
+		AND M.CAROID = #get_caroid#
+		</isNotEmpty>
+		<isNotEmpty property="get_dno">
+		AND upper(M.DNO) like upper('%'||#get_dno#||'%')
+		</isNotEmpty>
+		<isNotEmpty property="get_dver">
+		AND M.MVERSION = #get_dver#
+		</isNotEmpty>
+	</select>
+	
+	<select id="DrawMngDAO.selectCar" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT NAME, OID, PARENTOID FROM ENGCTGVIEW START WITH PARENTOID = 'CCN00131' CONNECT BY PRIOR OID = PARENTOID
+	</select>
+	
+	<select id="DrawMngDAO.selectCancledraw" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT a.DNO, a.MVERSION, b.RFILENAME, a.OID FROM MOD a INNER JOIN MODFILES b ON a.OID = b.MODOID WHERE a.STAOID = 'CCN00193' AND a.REGHUMID = #humid#
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchParent" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.oid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid, '' as parentoid, 
+        0 as tmpLevel, m.oid as path, 1 as seq, m.staoid, h.name from mod m inner join modfiles mf on m.oid = mf.modoid 
+        left outer join hum h on mf.checkhumid = h.id
+        where m.caroid = #caroid# and m.dno = #dno# and m.mversion = #mversion# and mf.masterflag = 'T'
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchChild" parameterClass="java.util.Map" resultClass="egovMap">
+		select distinct e.modoid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid, e.parentoid,
+        level, concat(#parentoid#, SYS_CONNECT_BY_PATH(e.modoid, ';')) as PATH, e.seq, m.staoid, h.name
+        from ebom e inner join mod m on e.modoid = m.oid inner join modfiles mf on m.oid = mf.modoid
+        left outer join hum h on mf.checkhumid = h.id
+        start with parentoid = #parentoid# connect by prior e.modoid = e.parentoid order by e.seq
+	</select>
+	
+	<select id="DrawMngDAO.selectEBOMTreeChild" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.oid as modoid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid,
+				eb.parentoid, LEVEL-1, SYS_CONNECT_BY_PATH(m.oid, ';') as PATH, case when eb.seq is null then 1 else eb.seq end seq, m.staoid, h.name
+		FROM mod m
+		left join ebom eb
+		on m.oid = eb.modoid
+		left join modfiles mf
+		on (m.oid = mf.modoid and mf.masterflag = 'T')
+		left join hum h
+		on mf.checkhumid = h.id 
+		start with m.oid = #parentoid#
+		connect by prior m.oid = eb.parentoid
+		order siblings by eb.parentoid, eb.seq
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchModfiles" remapResults="true" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.dno, m.caroid, mf.oid, mf.version, mf.modoid, mf.filepath, mf.filename, mf.rfilename,
+        mf.regdate, mf.checkdate, mf.chkoutpath, mf.checkhumid, mf.indexno
+        from modfiles mf inner join mod m on m.oid = mf.modoid
+        where mf.modoid in $tu_data$ order by mf.indexno       
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchModfilehistory" remapResults="true" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.dno, ec.name, c1.name as prttypeoid, m.mversion, c.name as modtypeoid, m.regdate, mh.version,
+        mh.oid, mh.modoid, mh.filename, mh.rfilename, mh.filepath from mod m
+        inner join modfilehistory mh on m.oid = mh.modoid inner join engctgview ec on m.caroid = ec.oid
+        inner join ccn c on m.modtypeoid = c.oid inner join ccn c1 on m.prttypeoid = c1.oid
+        where mh.modoid in $tu_data$ order by mh.version desc
+	</select>
+	
+	<update id="DrawMngDAO.updateModCheckOut" parameterClass="java.util.Map" >
+		UPDATE MOD SET CHECKDATE = to_date(#check_date#, 'YYYY/MM/DD HH24:MI:SS'),
+        MVERSION = #cv_num#, DEVSTEP = #cv_step#, STAOID = 'CCN00192', CHANGEDATE = current_date
+        WHERE OID IN $oids$
+	</update>
+	
+	<update id="DrawMngDAO.updateModCheckOut2" parameterClass="java.util.Map" >
+		UPDATE MOD SET CHECKDATE = to_date(#check_date#, 'YYYY/MM/DD HH24:MI:SS'), CHANGEDATE = current_date WHERE OID IN $oids$
+	</update>
+	
+	<update id="DrawMngDAO.updateModfilesCheckOut" parameterClass="java.util.Map" >
+		UPDATE MODFILES SET CHECKDATE = to_date(#check_date#, 'YYYY/MM/DD HH24:MI:SS') , CHECKHUMID = #hum_id#,
+        CHKOUTPATH = #chkout_path#, CHANGEDATE = to_date(#check_date#, 'YYYY/MM/DD HH24:MI:SS'), CHKROOTOID = #root_oid#
+        WHERE MODOID IN $oids$
+	</update>
+	
+	<!-- <update id="DrawMngDAO.updateModCancleCheckOut" parameterClass="java.util.Map" >
+		UPDATE MOD SET CHECKDATE = '' WHERE OID in $oids$
+	</update>
+	
+	<update id="DrawMngDAO.updateModfilesCancleCheckOut" parameterClass="java.util.Map" >
+		UPDATE MODFILES SET CHECKDATE = '' , CHECKHUMID = '' , CHKOUTPATH = '' WHERE MODOID in $oids$
+	</update> -->
+	
+	<insert id="DrawMngDAO.insertModfilehistory2" parameterClass="java.util.Map">
+		INSERT INTO MODFILEHISTORY(OID, MODOID, VERSION, FILENAME, RFILENAME, FILESIZE, FILEPATH, FILESEQ, MASTERFLAG, HUMID, REGDATE, CHANGEDATE)
+        SELECT OID, MODOID, VERSION, FILENAME, RFILENAME, FILESIZE, FILEPATH, INDEXNO, MASTERFLAG, HUMID, REGDATE, current_date
+        FROM MODFILES WHERE CHKOUTPATH = #chkout_path2#
+	</insert>
+	
+	<update id="DrawMngDAO.updateCancleDraw" parameterClass="java.util.Map" >
+		UPDATE MOD SET STAOID = 'CCN00192' WHERE DNO = #dno# AND MVERSION = #mversion#
+	</update>
+	
+	<select id="DrawMngDAO.selectHumCheck" parameterClass="java.util.Map" resultClass="egovMap">
+		<!-- SELECT count(*) FROM HUM WHERE ID = #id# and PWD = #pw# -->
+		SELECT id, name FROM HUM WHERE ID = #id# and PWD = #pw# 
+	</select>
+	
+	<select id="DrawMngDAO.selectModCheckIn" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT MF.OID, MF.VERSION, MF.MODOID, MF.RFILENAME, MF.CHECKDATE, MF.CHECKHUMID, MF.CHKROOTOID, M.STAOID
+        FROM MODFILES MF INNER JOIN MOD M ON M.OID = MF.MODOID WHERE CHKOUTPATH = #chkout_path#
+	</select>
+	
+	<select id="DrawMngDAO.selectCheckInRootOid" parameterClass="java.lang.String" resultClass="java.lang.String">
+		select chkrootoid from modfiles where chkoutpath = #path# and rownum = 1
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchModfiles2" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select m.dno, m.caroid, mf.oid, mf.version, mf.modoid, mf.filepath, mf.filename, mf.rfilename,
+        		mf.regdate, mf.checkdate, mf.chkoutpath, mf.checkhumid, mf.indexno
+        from modfiles mf inner join mod m on m.oid = mf.modoid
+        where mf.modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		order by mf.indexno
+	</select>
+	
+	<select id="DrawMngDAO.selectOriEbomFileOid" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select rfilename, modoid 
+		from modfiles 
+		where modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.selectEbomCheckIn" parameterClass="java.util.Map" resultClass="egovMap">
+		select distinct e.modoid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid, e.parentoid,
+        level, concat(#parentoid#, SYS_CONNECT_BY_PATH(e.modoid, ';')) as PATH
+        from ebom e inner join mod m on e.modoid = m.oid inner join modfiles mf on m.oid = mf.modoid
+        start with parentoid = #parentoid# connect by prior e.modoid = e.parentoid
+	</select>
+	
+	<select id="DrawMngDAO.selectModfilesCheckIn" remapResults="true" parameterClass="java.util.Map" resultClass="egovMap">
+		select rfilename from modfiles where modoid in $tu_data$
+	</select>
+	
+	<update id="DrawMngDAO.updateNoAddfileCheckIn" parameterClass="java.util.Map" >
+		UPDATE MODFILES SET VERSION = #version#, FILEPATH = #filepath#, RFILENAME = #rfilename#, 
+		FILENAME = #filename#, FILESIZE = #filesize#,
+        CHANGEDATE = current_date, CHECKDATE = '', CHECKHUMID = '', CHKOUTPATH = '', CHKROOTOID = ''
+        WHERE CHKOUTPATH = #chkoutpath# AND OID = #oid# 
+	</update>
+		
+	<update id="DrawMngDAO.updateNoAddfileCheckIn2" parameterClass="java.util.Map" >
+		UPDATE MOD SET CHECKDATE = '', STAOID = #staoid# WHERE OID in $allMod$
+	</update>
+	
+	<select id="DrawMngDAO.selectAutoExistInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT b.NAME, a.PRTTYPEOID, a.MODULETYPE, a.MODTYPEOID, a.EONO, a.DSCOID, a.MODSIZEOID, a.DEVSTEP, a.CAROID
+        FROM MOD A INNER JOIN ENGCTGVIEW B ON a.CAROID = b.OID
+        WHERE a.OID = (select modoid from modfiles where rfilename = #rfile# and chkoutpath = #path#)
+	</select>
+	
+	<select id="DrawMngDAO.selectRegCatchError" remapResults="true" parameterClass="java.util.Map" resultClass="egovMap">
+		select dno from mod where dno in $tu_dno$
+	</select>
+	
+	<select id="DrawMngDAO.selectRegCatchError2" remapResults="true" parameterClass="java.util.Map" resultClass="egovMap">
+		select vp.oid, vp.pversion, vp.pno, vp.staoid
+        from verprt vp, (select max(to_number(pversion)) as pversion, pno from verprt where upper(pno) in $query_pno$ group by pno) vp2
+        where vp.pno = vp2.pno and vp.pversion = to_char(vp2.pversion)
+	</select>
+	
+	<select id="DrawMngDAO.selectComtecopseq" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT NEXT_ID FROM COMTECOPSEQ WHERE TABLE_NAME = #id#
+	</select>
+	
+	<insert id="DrawMngDAO.insertNoAddNewEbom" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO EBOM (MODOID, PARENTOID, SEQ, HUMID, REGDATE)
+	    	VALUES (#[].childoid#, #[].parentoid#, #[].seq#, #[].humid#, SYSDATE)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	
+	<insert id="DrawMngDAO.insertAddDataMod" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO MOD(OID, CAROID, PRTTYPEOID, DNO, MVERSION, MODULETYPE, MODTYPEOID, 
+	    	EONO, DSCOID, MODSIZEOID, DEVSTEP, STAOID, REGHUMID, DISTHUMID, REGDATE, dnam) 
+	    	VALUES (#[].oid#, #[].caroid#, #[].prttypeoid#, #[].dno#, #[].mversion#, #[].moduletype#, #[].modtypeoid#, 
+	    	#[].eono#, #[].dscoid#, #[].modsizeoid#, #[].devstep#, #[].get_radio#, #[].regid#, '', current_date, #[].dnam# )
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<update id="DrawMngDAO.updateComtecopseq" parameterClass="java.util.Map" >
+		UPDATE COMTECOPSEQ SET NEXT_ID = #next_id#  WHERE TABLE_NAME = #id#
+	</update>
+	
+	<insert id="DrawMngDAO.insertDrawrel" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO DRAWREL(MODOID, RELOID, REF) VALUES (#[].oid#, #[].reloid#, #[].ref#) 
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<insert id="DrawMngDAO.insertAddDataModfiles" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO MODFILES(OID, MODOID, VERSION, FILENAME, RFILENAME,
+	    	FILESIZE, MASTERFLAG, REGDATE, HUMID, FILEPATH, INDEXNO)
+            VALUES (#[].oid#, #[].modoid#, #[].version#, #[].filename#, #[].rfilename#,
+            #[].filesize#, #[].masterflag#, current_date, #[].humid#, #[].filepath#, #[].indexno#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<insert id="DrawMngDAO.insertGetEbomData" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO EBOM (MODOID, PARENTOID, HUMID, SEQ)
+	    	VALUES (#[].cur#, #[].par#, #[].humid#, #[].seq#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<insert id="DrawMngDAO.insertModfilesThumbNail" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO MODFILES (OID, VERSION, MODOID, FILEPATH, RFILENAME, FILENAME, 
+	    	FILESIZE, HUMID, MASTERFLAG, REGDATE, INDEXNO)
+            VALUES (#[].oid#, #[].version#, #[].modoid#, #[].filepath#, #[].rfilename#, #[].filename#,
+            #[].filesize#, #[].humid#, #[].masterflag#, current_date, #[].indexno#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<update id="DrawMngDAO.updateAddDataModfiles" parameterClass="java.util.Map" >
+		UPDATE MODFILES SET VERSION = #version#, FILEPATH = #filepath#, RFILENAME = #rfilename#, 
+		FILENAME = #filename#, FILESIZE = #filesize#,
+        CHANGEDATE = current_date, CHECKDATE = '', CHECKHUMID = '', CHKOUTPATH = ''
+        WHERE CHKOUTPATH = #chkoutpath# AND OID = #oid#
+	</update>
+	
+	<select id="DrawMngDAO.selectChkrootoid" parameterClass="java.util.Map" resultClass="egovMap">
+		select rfilename, modoid from modfiles where modoid = (select chkrootoid from modfiles where chkoutpath = #chkoutpath# and rownum = 1) and indexno = 1
+	</select>
+	
+	<select id="DrawMngDAO.selectChkOutEbomfiles" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		SELECT MF.OID, MF.VERSION, MF.FILENAME, MF.RFILENAME, MF.FILESIZE, MF.INDEXNO, MF.MASTERFLAG
+		FROM MODFILES MF
+		WHERE MF.MODOID 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.selectEbomFileList" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		SELECT MF.OID, MF.MODOID, MF.VERSION, MF.FILENAME, MF.RFILENAME, MF.FILESIZE, MF.INDEXNO, MF.MASTERFLAG
+		FROM MODFILES MF
+		WHERE INDEXNO = '1' AND MF.MODOID 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<delete id="DrawMngDAO.deleteEbomList" parameterClass="java.util.Map" >
+		delete from ebom where modoid = #modoid# and parentoid = #parentoid# and seq = #seq#
+	</delete>	
+<!-- 	<delete id="DrawMngDAO.deleteEbomList" parameterClass="java.util.List">
+		delete from ebom where modoid 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</delete> -->
+	
+	<select id="DrawMngDAO.selectCCN" parameterClass="java.util.Map" resultClass="egovMap">
+		select oid, name from ccn where parentoid = #parentoid#	order by seq	
+	</select>
+	
+	<update id="DrawMngDAO.checkoutRevisionMod" parameterClass="java.util.Map" >
+		INSERT INTO MOD(oid,moduletype,dno,modtypeoid,disthumid,eono,mversion,modsizeoid,devstep,staoid,
+						reghumid,regdate,changedate,modappoid,lastflag,caroid,dscoid,checkdate,prttypeoid,distoid,description,appmaioid,dnam)
+		SELECT #newoid#,moduletype,dno,modtypeoid,disthumid,#eono#,#num#,modsizeoid,#step#,'CCN00192',
+				#loginid#,sysdate,sysdate,modappoid,lastflag,caroid,dscoid,sysdate,prttypeoid,distoid,description,appmaioid,dnam
+		FROM MOD 
+		WHERE oid = #oid# AND dno = #dno#
+	</update>
+	
+	<update id="DrawMngDAO.updateEbomLastmodoid" parameterClass="java.util.Map" >
+		update ebom set lastmodoid = #newoid# where modoid in (select oid from mod where dno = #dno#)
+	</update>
+	
+	<update id="DrawMngDAO.updateModStaoid" parameterClass="java.util.Map" >
+		update mod
+		set staoid = 'CCN00192'
+		where oid = #oid# AND dno = #dno#
+	</update>
+	
+	<select id="DrawMngDAO.selectgetModFiles" parameterClass="java.lang.String" resultClass="egovMap">
+		select modoid, filename from modfiles where modoid = #oid#
+	</select>
+	
+	<update id="DrawMngDAO.checkoutRevisionModFiles" parameterClass="java.util.Map" >
+		insert into modfiles(oid,version,modoid,filepath,filename,rfilename,filesize,indexno,fileseq,masterflag,
+							chkoutpath,checkdate,humid,regdate,checkhumid,changedate,thumflag,chkrootoid)
+		select #fileOid#,'0',#newoid#,filepath,filename,rfilename,filesize,indexno,fileseq,masterflag,
+				#chkout_path#,sysdate,#chkhumid#,sysdate,#chkhumid#,sysdate,thumflag,#root_oid#
+		from modfiles 
+		where modoid = #modoid# and filename = #filename#
+	</update>
+	
+	<select id="DrawMngDAO.selectgetOriEbom" parameterClass="java.lang.String" resultClass="egovMap">
+		select m.oid as modoid, eb.parentoid as parentoid, eb.quantity as quantity, eb.seq as seq, 
+			   eb.humid as humid, eb.regdate as regdate, eb.rootoid as rootoid, LEVEL
+		FROM mod m
+		left join ebom eb
+		on m.oid = eb.modoid
+		start with m.oid = #oid#
+		connect by prior m.oid = eb.parentoid
+		order siblings by eb.parentoid, eb.seq
+	</select>
+	
+	<select id="DrawMngDAO.selectgetOriEbom2" parameterClass="java.lang.String" resultClass="egovMap">
+		select m.oid as modoid, eb.parentoid as parentoid, eb.quantity as quantity, eb.seq as seq, 
+			   eb.humid as humid, eb.regdate as regdate, eb.rootoid as rootoid, LEVEL
+		FROM mod m
+		left join ebom eb
+		on m.oid = eb.modoid
+		start with m.oid = #oid#
+		connect by prior m.oid = eb.parentoid
+		order siblings by eb.parentoid, eb.seq
+	</select>
+	
+	<select id="DrawMngDAO.selectMaxVerDno" parameterClass="java.lang.String" resultClass="java.lang.String">
+		select oid 
+		from mod 
+		where mversion = (select max(to_number(mversion)) as dver from mod where dno = #dno#) and dno = #dno#
+	</select>
+	
+	<select id="DrawMngDAO.selectMaxVerPno" parameterClass="java.lang.String" resultClass="java.lang.String">
+		select oid 
+		from verprt 
+		where pversion = (select max(to_number(pversion)) as pver from verprt where pno = #pno#) and pno = #pno#
+	</select>
+	
+	
+	<!-- <insert id="DrawMngDAO.checkoutRevisionEBOM" parameterClass="java.util.Map" >
+		insert into ebom(modoid, parentoid, seq, humid, regdate)
+		values(#modoid#, #parentoid#, #seq#, #humid#, sysdate)
+	</insert> -->
+	
+	<insert id="DrawMngDAO.checkoutRevisionEBOM" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO EBOM (MODOID, PARENTOID, SEQ, HUMID, REGDATE, LASTMODOID)
+	    	VALUES (#[].modoid#, #[].parentoid#, #[].seq#, #[].humid#, SYSDATE, #[].lastmodoid#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<select id="DrawMngDAO.selectdrawrel" parameterClass="java.lang.String" resultClass="egovMap">
+		select modoid, reloid, ref from drawrel where modoid = #oid#
+	</select>
+	
+	<select id="DrawMngDAO.selectMaxPrtVersion" parameterClass="java.lang.String" resultClass="egovMap">
+		<!-- select max(pversion) as pver from verprt where pno = (select pno from verprt where oid = #oid#)  -->
+		select oid, pversion, humid, pno 
+		from verprt 
+		where pno = (select pno from verprt where oid = #oid#) 
+		order by to_number(pversion) desc
+	</select>
+	
+	<select id="DrawMngDAO.selectMaxPrtVersion2" parameterClass="java.lang.String" resultClass="egovMap">
+		select oid, pversion, humid, pno 
+		from verprt 
+		where pno = #pno# 
+		order by to_number(pversion) desc
+	</select>
+	
+	<update id="DrawMngDAO.checkoutRevisionVerprt" parameterClass="java.util.Map" >
+		insert into verprt(oid,prtoid,pversion,modoid,humid,regdate,grp,unit,weight,cost,new_assemble,color,material,description,staoid,
+							caroid,pno,nam,prttypoid,prtctgoid,itmctgoid,vno,cno,cno2,factory,factory2,devstep,oemtypoid,payment,steering,
+							activeflag,attr1,attr2,attr3,attr4,attr5,attr6,attr7,attr8,attr9,attr10,attr11,attr12,attr13,attr14)
+		select #newoid#,prtoid,#pver#,modoid,#humid#,sysdate,grp,unit,weight,cost,new_assemble,color,material,description,'CCN00192',
+				caroid,pno,nam,prttypoid,prtctgoid,itmctgoid,vno,cno,cno2,factory,factory2,devstep,oemtypoid,payment,steering,
+				activeflag,attr1,attr2,attr3,attr4,attr5,attr6,attr7,attr8,attr9,attr10,attr11,attr12,attr13,attr14
+		from verprt 
+		where oid = #oid#
+	</update>
+	
+	<update id="DrawMngDAO.updateVerprtStaoid" parameterClass="java.util.Map" >
+		update verprt
+		set staoid = 'CCN00196'
+		where oid = #oid#
+	</update>
+	
+	<insert id="DrawMngDAO.checkoutRevisionDrawRel" parameterClass="java.util.Map" >
+		insert into drawrel(modoid, reloid, ref)
+		values(#modoid#, #reloid#, #ref#)
+	</insert>
+	
+	<insert id="DrawMngDAO.insertOnlyOneMod" parameterClass="java.util.Map" >
+		INSERT INTO MOD(OID, CAROID, PRTTYPEOID, DNO, MVERSION, MODULETYPE, MODTYPEOID, 
+	    				EONO, DSCOID, MODSIZEOID, DEVSTEP, STAOID, REGHUMID, REGDATE, DNAM)
+	    VALUES(#oid#, #caroid#, #prttypeoid#, #dno#, #mversion#, #moduletype#, #modtypeoid#,
+	    		#eono#, #dscoid#, #modsizeoid#, #devstep#, #staoid#, #humid#, sysdate, #dnam#)
+	</insert>
+	
+	<insert id="DrawMngDAO.insertOnlyOneModFile" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO MODFILES (OID, VERSION, MODOID, FILEPATH, RFILENAME, FILENAME, 
+	    				   FILESIZE, HUMID, MASTERFLAG, REGDATE, INDEXNO)
+            VALUES (#[].oid#, #[].version#, #[].modoid#, #[].filepath#, #[].rfilename#, #[].filename#,
+            		#[].filesize#, #[].humid#, #[].masterflag#, current_date, #[].indexno#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<parameterMap id="errParameters" class="map">
+	 	 <parameter property="P_ERR_MSG" javaType="java.lang.String" jdbcType="VARCHAR" mode="OUT"/>
+    </parameterMap>
+    
+    <procedure id="DrawMngDAO.updateCallBomMain" parameterMap="errParameters">
+         {call IF_ERP_INTERFACE_PKG.BOM_MAIN(?)}
+    </procedure>
+	
+	<select id="DrawMngDAO.selectModfilesList" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		SELECT MF.OID, MF.VERSION, MF.FILENAME, MF.RFILENAME, MF.FILESIZE, MF.INDEXNO, MF.MASTERFLAG
+		FROM MODFILES MF
+		WHERE MF.MODOID 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.selectModMaxVersion" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select max(to_number(mversion))+1 as mver, dno from mod where dno 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		group by dno
+	</select>
+	
+	<!-- <select id="DrawMngDAO.selectModDrawrel" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select LISTAGG(vp.pno,',') WITHIN GROUP(order by d.modoid) AS pno,
+		       LISTAGG(d.reloid,',') WITHIN GROUP(order by d.modoid) AS reloid, d.modoid 
+		from drawrel d inner join verprt vp on d.reloid = vp.oid
+		where d.modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		GROUP BY d.modoid
+	</select> -->
+	
+	<select id="DrawMngDAO.selectModDrawrel" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select regexp_replace(LISTAGG(vp.pno,',') WITHIN GROUP(order by d.modoid), '([^,]+)(,\1)+', '\1')  AS pno, d.modoid 
+		from drawrel d inner join verprt vp on d.reloid = vp.oid
+		where d.modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		GROUP BY d.modoid
+	</select>
+	
+	<select id="DrawMngDAO.selectEbomModOid" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select * from ebom where modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.checkMaxVersion" parameterClass="java.util.Map" resultClass="java.lang.String">
+		select max(to_number(mversion)) as mver from mod where dno = #dno#
+	</select>
+	
+	<update id="DrawMngDAO.updateModCancleCheckout" parameterClass="java.util.List">
+		update mod set checkdate = '' where oid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</update>
+	
+	<update id="DrawMngDAO.updateModFilesCancleCheckout" parameterClass="java.util.List">
+		update modfiles set checkdate = '', checkhumid = '', chkoutpath = '', chkrootoid = '' where modoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</update>
+	
+	<insert id="DrawMngDAO.checkoutRevisionMBOM" parameterClass="java.util.Map" >
+		insert into mbom(verprtoid, parentoid, quantity, seq, humid, regdate)
+		values(#verprtoid#, #parentoid#, #quantity#, #seq#, #humid#, sysdate)
+	</insert>
+	
+	<select id="DrawMngDAO.selectPartInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		select c1.name as prttype, e.name as carname, vp.pno, vp.nam, vp.pversion, h.name as humname, c2.name as staoid, vp.oid
+		from verprt vp inner join ccn c1 on vp.prttypoid = c1.oid
+		               inner join engctgview e on vp.caroid = e.oid
+		               inner join hum h on vp.humid = h.id
+		               inner join ccn c2 on vp.staoid = c2.oid
+		where vp.pno = #pno#
+		order by TO_NUMBER(vp.pversion) desc
+	</select>
+	
+	<insert id="DrawMngDAO.insertModfilesHistory" parameterClass="java.lang.String">
+		INSERT INTO MODFILEHISTORY(OID, MODOID, VERSION, FILENAME, RFILENAME, FILESIZE, FILEPATH, FILESEQ, MASTERFLAG, HUMID, REGDATE, CHANGEDATE)
+        SELECT OID, MODOID, VERSION, FILENAME, RFILENAME, FILESIZE, FILEPATH, INDEXNO, MASTERFLAG, HUMID, REGDATE, current_date
+        FROM MODFILES WHERE CHKOUTPATH = #path#
+	</insert>
+	
+	<select id="DrawMngDAO.selectCheckInModfiles" parameterClass="java.lang.String" resultClass="egovMap">
+		select * from modfiles where chkoutpath = #path#
+	</select>
+	
+	<update id="DrawMngDAO.updateModfilesCheckIn" parameterClass="java.util.Map">
+		UPDATE MODFILES 
+		SET VERSION = #version#, FILEPATH = #filepath#, FILENAME = #filename#, FILESIZE = #filesize#, RFILENAME = #rfilename#, 
+        	CHANGEDATE = current_date, CHECKDATE = '', CHECKHUMID = '', CHKOUTPATH = '', CHKROOTOID = ''
+        WHERE CHKOUTPATH = #chkoutpath# AND OID = #oid#
+	</update>
+	
+	<update id="DrawMngDAO.updateModCheckIn" parameterClass="java.util.Map">
+		UPDATE MOD 
+		SET CHECKDATE = null, STAOID = #staoid# 
+		WHERE OID = #modoid#
+	</update>
+	
+	<select id="DrawMngDAO.autoFillModInfo" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT b.NAME, a.PRTTYPEOID, a.MODULETYPE, a.MODTYPEOID, a.EONO, a.DSCOID, a.MODSIZEOID, a.DEVSTEP, a.CAROID
+        FROM MOD A INNER JOIN ENGCTGVIEW B ON a.CAROID = b.OID
+        WHERE a.OID = (select modoid from modfiles where rfilename = #rfile# and chkoutpath = #path#)
+	</select>
+	
+	<select id="DrawMngDAO.selectRegCatchError3" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select oid, pno, staoid from verprt 
+		where pno
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.selectCancleStaoid" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select oid, dno, staoid
+		from mod 
+		where oid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<update id="DrawMngDAO.updateCancleStaoid" parameterClass="java.util.List">
+		update mod set staoid = 'CCN00192' where oid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</update>
+	
+	<insert id="DrawMngDAO.insertNewRegistEbom" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO EBOM (MODOID, PARENTOID, SEQ, HUMID, REGDATE, LASTMODOID)
+	    	VALUES (#[].modoid#, #[].parentoid#, #[].seq#, #[].humid#, current_date, #[].lastmodoid#)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<select id="DrawMngDAO.selectComtecopseq2" parameterClass="java.util.Map" resultClass="egovMap">
+		SELECT * FROM COMTECOPSEQ WHERE TABLE_NAME = #id#
+	</select>
+	
+	<insert id="DrawMngDAO.insertModfiles2" parameterClass="java.util.Map" >
+		INSERT INTO MODFILES (OID, VERSION, MODOID, FILEPATH, RFILENAME, FILENAME, FILESIZE, HUMID, MASTERFLAG, REGDATE, INDEXNO)
+        VALUES (#oid#, #version#, #modoid#, #filepath#, #rfilename#, #filename#,
+            	#filesize#, #humid#, #masterflag#, current_date, #indexno#)
+	</insert>
+		
+	<select id="DrawMngDAO.selectMaxIndexNo" parameterClass="java.lang.String" resultClass="java.lang.String">
+		select max(to_number(indexno)) as idxno from modfiles where modoid = #modoid#
+	</select>
+	
+	<select id="DrawMngDAO.selectPnoMaxStaoid" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select a.pno, a.pversion, a.staoid
+		from verprt a
+		inner join (
+		    select pno, max(to_number(pversion)) as pver from verprt where pno 
+		    <iterate prepend="IN" open="(" close=")" conjunction=",">
+				#[]#
+			</iterate>
+		    group by pno
+		    ) b
+		on a.pno = b.pno and a.pversion = b.pver
+	</select>
+	
+	<select id="DrawMngDAO.selectMainParentLastoid" parameterClass="java.util.Map" resultClass="egovMap">
+		select oid, dno, mversion from mod where dno = #dno# order by to_number(mversion) desc
+	</select>
+	
+	<select id="DrawMngDAO.selectLatestEbomChild" parameterClass="java.util.Map" resultClass="egovMap">
+		select m.oid as modoid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid,
+				eb.parentoid, LEVEL-1, SYS_CONNECT_BY_PATH(m.oid, ';') as PATH, 
+				case when eb.seq is null then 1 else eb.seq end seq, m.staoid, h.name, eb.lastmodoid
+		FROM mod m
+		left join ebom eb
+		on m.oid = eb.modoid
+		left join modfiles mf
+		on (m.oid = mf.modoid and mf.masterflag = 'T')
+		left join hum h
+		on mf.checkhumid = h.id 
+		start with m.oid = #parentoid#
+		connect by prior m.oid = eb.parentoid
+		order siblings by eb.parentoid, eb.seq
+	</select>
+	
+	<select id="DrawMngDAO.selectMainSearchModfilehistory2" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select m.dno, ec.name, c1.name as prttypeoid, m.mversion, c.name as modtypeoid, m.regdate, mh.version,
+        mh.oid, mh.modoid, mh.filename, mh.rfilename, mh.filepath from mod m
+        inner join modfilehistory mh on m.oid = mh.modoid inner join engctgview ec on m.caroid = ec.oid
+        inner join ccn c on m.modtypeoid = c.oid inner join ccn c1 on m.prttypeoid = c1.oid
+        where mh.modoid 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		order by mh.version desc
+	</select>
+	
+	<select id="DrawMngDAO.selectLatestModInfo" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select m.oid as modoid, m.dno, m.mversion, m.prttypeoid, m.caroid, mf.checkdate, mf.checkhumid, m.staoid, h.name
+		from mod m
+		left join modfiles mf on (m.oid = mf.modoid and mf.masterflag = 'T')
+		left join hum h
+		on mf.checkhumid = h.id
+	    where m.oid
+	    <iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<select id="DrawMngDAO.selectCurMbom" parameterClass="java.util.List" resultClass="egovMap" remapResults="true">
+		select verprtoid, parentoid, quantity, seq, humid from mbom where verprtoid 
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+		union
+		select verprtoid, parentoid, quantity, seq, humid from mbom where parentoid
+		<iterate prepend="IN" open="(" close=")" conjunction=",">
+			#[]#
+		</iterate>
+	</select>
+	
+	<insert id="DrawMngDAO.revisionMbom" parameterClass="java.util.ArrayList" >
+		INSERT ALL
+	    <dynamic>
+	    	<iterate conjunction=" ">
+	    	INTO MBOM (VERPRTOID, PARENTOID, QUANTITY, SEQ, HUMID, REGDATE)
+	    	VALUES (#[].verprtoid#, #[].parentoid#, #[].quantity#, #[].seq#, #[].humid#, SYSDATE)
+			</iterate>
+		</dynamic>
+		SELECT 1 FROM DUAL
+	</insert>
+	
+	<delete id="DrawMngDAO.deleteMbomList" parameterClass="java.util.Map" >
+		delete from mbom where verprtoid = #verprtoid# and parentoid = #parentoid# and quantity = #quantity# and seq = #seq#		
+	</delete>
+	
+	<select id="DrawMngDAO.selectModInfo" parameterClass="java.util.Map" resultClass="java.lang.String">
+		select dno from mod where oid = #modoid#		
+	</select>
+	
+	<select id="DrawMngDAO.selectMaxModoid" parameterClass="java.util.Map" resultClass="java.lang.String">
+		select oid from mod where dno = #dno# and mversion = (select max(to_number(mversion)) from mod where dno = #dno#)
+	</select>
+	
+</sqlMap>
